@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: Smart Tijori — Family Document Vault API
+  version: 2.0.0
+  description: |
+    Bilingual (English/हिंदी) family document vault.
+    All endpoints (except `/api/health`, `/api/share/{token}` and `/api/documents/{id}/file` with a
+    valid share token+passcode) require the vault session cookie `vault_unlocked=1`,
+    issued by POST /api/lock {action:"verify"}.
+tags:
+  - name: family
+  - name: documents
+  - name: download
+  - name: security
+  - name: system
+paths:
+  /api/health:
+    get:
+      tags: [system]
+      summary: Liveness probe
+      responses:
+        "200": { description: "{ ok: true }" }
+  /api/members:
+    get:
+      tags: [family]
+      summary: List family members with live document counts
+      responses:
+        "200": { description: Roster array; "401": { description: Locked } }
+    post:
+      tags: [family]
+      summary: Add a custom family member (5 default folders auto-created)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nameEn, nameHi]
+              properties:
+                nameEn: { type: string, example: Dadi }
+                nameHi: { type: string, example: दादी }
+                aliases: { type: array, items: { type: string }, example: ["Kamla Devi"] }
+      responses:
+        "200": { description: Created member }
+  /api/members/{id}/folders:
+    get:
+      tags: [family]
+      summary: List a member's folders with counts
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: Folder array }
+    post:
+      tags: [family]
+      summary: Create a custom folder
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, example: Medical Reports }
+                nameHi: { type: string, example: मेडिकल रिपोर्ट }
+      responses: { "200": { description: Created folder } }
+  /api/folders/{id}:
+    delete:
+      tags: [family]
+      summary: Delete a custom folder (documents fall back to "Other")
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: Deleted }
+        "400": { description: Cannot delete a default folder }
+  /api/documents:
+    get:
+      tags: [documents]
+      summary: List documents (metadata only)
+      parameters:
+        - { name: memberId, in: query, schema: { type: string, format: uuid } }
+        - { name: folderId, in: query, schema: { type: string, format: uuid } }
+        - { name: category, in: query, schema: { type: string, enum: [education, id, marksheet, land, other] } }
+        - { name: bin, in: query, schema: { type: string, enum: ["1"] }, description: Recycle bin listing }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 200 } }
+      responses: { "200": { description: Document array }, "401": { description: Locked } }
+  /api/documents/{id}:
+    delete:
+      tags: [documents]
+      summary: Soft-delete into the Recycle Bin (30-day retention)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: Moved to bin } }
+    patch:
+      tags: [documents]
+      summary: Move / restore / purge a document
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                folderId: { type: string, format: uuid }
+                action: { type: string, enum: [restore, purge] }
+      responses: { "200": { description: Updated } }
+  /api/upload:
+    post:
+      tags: [documents]
+      summary: |
+        Smart upload. Multipart `file` + `name` + `mime`. Optional chunking fields
+        (uploadId/chunkIndex/totalChunks), `merge=1` to replace, `memberId`/`folderId` overrides.
+        Server extracts PDF text, classifies folder, detects family member, extracts tags.
+        Returns 409 { duplicate, existing } when byte-identical content exists.
+      responses:
+        "200": { description: "{ document, detected: { folder, memberCertain, memberKey } }" }
+        "409": { description: Duplicate file }
+  /api/documents/{id}/file:
+    get:
+      tags: [download]
+      summary: Raw view / quality download / conversion (jpg|png|pdf × low|medium|high)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: mode, in: query, schema: { type: string, enum: [raw, jpg, png, pdf], default: raw } }
+        - { name: quality, in: query, schema: { type: string, enum: [low, medium, high], default: medium } }
+        - { name: download, in: query, schema: { type: string, enum: ["1"] } }
+        - { name: share, in: query, schema: { type: string }, description: QR share token }
+        - { name: p, in: query, schema: { type: string }, description: QR viewer passcode }
+      responses: { "200": { description: File bytes }, "401": { description: Locked }, "410": { description: Share expired } }
+  /api/documents/{id}/sized:
+    post:
+      tags: [download]
+      summary: |
+        EXACT-SIZE engine. POST { targetBytes, format, estimate }.
+        estimate=true → JSON prediction; estimate=false → the file (byte-exact with the estimate).
+        Images: quality+dimension binary search ±5%. Scanned PDFs: embedded-image recompression.
+        Always satisfies ≤ target when physically possible (portal-limit semantics).
+      responses: { "200": { description: JSON estimate or file bytes } }
+  /api/batch-pdf:
+    post:
+      tags: [download]
+      summary: Merge selected images into one PDF
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids: { type: array, items: { type: string, format: uuid } }
+                quality: { type: string, enum: [low, medium, high] }
+      responses: { "200": { description: application/pdf } }
+  /api/bulk:
+    post:
+      tags: [documents]
+      summary: Bulk ZIP / soft-delete / move
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [zip, delete, move] }
+                ids: { type: array, items: { type: string, format: uuid } }
+                folderId: { type: string, format: uuid }
+      responses: { "200": { description: JSON or application/zip } }
+  /api/search:
+    get:
+      tags: [documents]
+      summary: Bilingual NLP search (voice text) — parses member, folder, time range, names
+      parameters: [{ name: q, in: query, required: true, schema: { type: string }, example: "पापा की मार्कशीट" }]
+      responses: { "200": { description: "{ intent, results }" } }
+  /api/documents/{id}/share:
+    post:
+      tags: [documents]
+      summary: Create/reveal QR share { token, passcode } with optional expiry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { expiresInHours: { type: integer, nullable: true, example: 24 } }
+      responses: { "200": { description: "{ token, passcode, expiresAt }" } }
+    delete:
+      tags: [documents]
+      summary: Revoke sharing
+      responses: { "200": { description: Revoked } }
+  /api/share/{token}:
+    get:
+      tags: [documents]
+      summary: QR landing verification — GET /api/share/{token}?p=1234 (no vault login)
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: p, in: query, schema: { type: string }, description: 4-digit viewer passcode }
+      responses:
+        "200": { description: Document meta }
+        "403": { description: Wrong passcode }
+        "410": { description: Expired }
+  /api/lock:
+    get:
+      tags: [security]
+      summary: Lock configuration + state
+      responses: { "200": { description: "{ locked, config }" } }
+    post:
+      tags: [security]
+      summary: |
+        Actions: setup | verify | verify-otp | otp-config | logout | recover | reset.
+        PIN (4 digits), pattern ("1-2-5-9"), password (≥6) are stored as scrypt hashes.
+        verify → { otpRequired: true } when 2FA enabled; then verify-otp completes login.
+      responses: { "200": { description: Result }, "403": { description: Rejected } }
+  /api/stats:
+    get:
+      tags: [system]
+      summary: Storage used/free, counts per folder and per member, last backup time
+      responses: { "200": { description: Stats object } }
+  /api/audit:
+    get:
+      tags: [system]
+      summary: Family activity timeline (latest first)
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 100 } }]
+      responses: { "200": { description: Log array } }
+  /api/backup:
+    get:
+      tags: [system]
+      summary: Full vault as ZIP (foldered by category, with manifest)
+      responses: { "200": { description: application/zip } }
+  /api/integrity:
+    post:
+      tags: [system]
+      summary: Self-healing scan — checksums verified, corrupt files restored from previous version
+      responses: { "200": { description: "{ checked, restored, broken, healthy }" } }
+components:
+  schemas:
+    Document:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        mimeType: { type: string }
+        size: { type: integer }
+        category: { type: string, enum: [education, id, marksheet, land, other] }
+        memberId: { type: string, format: uuid, nullable: true }
+        folderId: { type: string, format: uuid, nullable: true }
+        tags:
+          type: object
+          description: AI-extracted smart tags (owner, surveyNo, area, cardNo, expiry, percentage, year, person)
+        deletedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }

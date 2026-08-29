@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────
+   SMART TIJORI — warm "paper & ink" design system
+   WCAG 2.1 AA: every text/background pairing ≥ 4.5:1,
+   touch targets ≥ 60px, cues never rely on colour alone.
+   (Hindi/Devanagari is LTR — no RTL switch required.)
+   ───────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-cream: #f7f1e3;
+  --color-paper: #fffdf7;
+  --color-ink: #221a10;
+  --color-ink-soft: #57493a;
+  --color-leaf: #175732;
+  --color-leaf-deep: #0f4023;
+  --color-leaf-tint: #e4efe4;
+  --color-saffron: #d96a00;
+  --color-saffron-deep: #a84e00;
+  --color-saffron-tint: #fcefdc;
+  --color-straw: #efe3c4;
+  --color-warm-border: #e0d3b8;
+  --color-danger: #8f1d1d;
+  --color-danger-tint: #f9e5e5;
+
+  --font-sans: var(--font-noto), system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-fraunces), var(--font-noto), Georgia, serif;
+
+  --shadow-soft: 0 2px 6px rgba(60, 42, 16, 0.07), 0 14px 34px -12px rgba(60, 42, 16, 0.16);
+  --shadow-lift: 0 4px 10px rgba(60, 42, 16, 0.1), 0 24px 50px -16px rgba(60, 42, 16, 0.28);
+
+  --radius-card: 1.75rem;
+
+  --animate-scanline: scanline 1.6s ease-in-out infinite;
+  --animate-pulse-ring: pulsering 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-float: floaty 5s ease-in-out infinite;
+
+  @keyframes scanline {
+    0%, 100% { top: 6%; opacity: 0.9; }
+    50% { top: 88%; opacity: 1; }
+  }
+  @keyframes pulsering {
+    0% { transform: scale(1); opacity: 0.55; }
+    100% { transform: scale(1.9); opacity: 0; }
+  }
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+  @keyframes floaty {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-cream text-ink font-sans text-lg antialiased;
+  }
+  /* Accessible focus — thick, dual-tone, always visible */
+  :focus-visible {
+    outline: 4px solid var(--color-saffron);
+    outline-offset: 3px;
+    border-radius: 10px;
+  }
+  ::selection {
+    background: var(--color-leaf);
+    color: #fff;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  /* ── The "Dad Mode" button atoms — all ≥ 60px tall ────────────────── */
+  .btn,
+  .btn-primary,
+  .btn-accent,
+  .btn-ghost,
+  .btn-danger {
+    @apply inline-flex min-h-[60px] cursor-pointer items-center justify-center gap-3 rounded-2xl px-7 py-4 text-xl font-semibold tracking-tight transition-all duration-200 select-none active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-leaf text-white shadow-soft hover:bg-leaf-deep hover:shadow-lift;
+  }
+  .btn-accent {
+    @apply bg-saffron text-white shadow-soft hover:bg-saffron-deep hover:shadow-lift;
+  }
+  .btn-ghost {
+    @apply border-2 border-warm-border bg-paper text-ink hover:border-saffron hover:bg-saffron-tint;
+  }
+  .btn-danger {
+    @apply bg-danger text-white hover:bg-[#6f1414];
+  }
+  .btn-icon {
+    @apply inline-flex h-[60px] w-[60px] shrink-0 cursor-pointer items-center justify-center rounded-2xl border-2 border-warm-border bg-paper text-ink transition-all duration-200 hover:border-saffron hover:bg-saffron-tint active:scale-95;
+  }
+
+  .card {
+    @apply rounded-[1.75rem] border border-warm-border bg-paper shadow-soft;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-warm-border bg-straw/60 px-4 py-2 text-base font-semibold text-ink;
+  }
+
+  /* scanning shimmer strip */
+  .shimmer-bar {
+    background: linear-gradient(100deg, transparent 35%, rgba(217, 106, 0, 0.35) 50%, transparent 65%);
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+}

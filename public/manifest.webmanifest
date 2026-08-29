@@ -1,0 +1,37 @@
+{
+  "name": "Smart Tijori — स्मार्ट तिजोरी",
+  "short_name": "Smart Tijori",
+  "description": "Bilingual smart document vault — English & हिंदी. Voice search, auto-sorting, QR sharing, works offline.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f1e3",
+  "theme_color": "#175732",
+  "lang": "hi",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Scan / Upload", "url": "/upload" },
+    { "name": "Voice Search", "url": "/search" }
+  ]
+}
