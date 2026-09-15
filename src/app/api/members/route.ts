@@ -3,38 +3,51 @@ import { asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, members } from "@/db/schema";
 import { getRoster, isUnlocked } from "@/lib/vault";
+import { apiError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/members → family roster with live document counts. */
 export async function GET() {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const roster = await getRoster();
-  const counts = await db
-    .select({ memberId: documents.memberId, n: sql<number>`count(*)::int` })
-    .from(documents)
-    .where(isNull(documents.deletedAt))
-    .groupBy(documents.memberId);
-  const countMap = new Map(counts.map((c) => [c.memberId, c.n]));
-  return NextResponse.json({
-    members: roster.map((m) => ({
-      id: m.id,
-      key: m.key,
-      nameEn: m.nameEn,
-      nameHi: m.nameHi,
-      icon: m.icon,
-      color: m.color,
-      aliases: m.aliases,
-      sort: m.sort,
-      docCount: countMap.get(m.id) ?? 0,
-    })),
-  });
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const roster = await getRoster();
+    const counts = await db
+      .select({ memberId: documents.memberId, n: sql<number>`count(*)::int` })
+      .from(documents)
+      .where(isNull(documents.deletedAt))
+      .groupBy(documents.memberId);
+    const countMap = new Map(counts.map((c) => [c.memberId, c.n]));
+    return NextResponse.json({
+      members: roster.map((m) => ({
+        id: m.id,
+        key: m.key,
+        nameEn: m.nameEn,
+        nameHi: m.nameHi,
+        icon: m.icon,
+        color: m.color,
+        aliases: m.aliases,
+        sort: m.sort,
+        docCount: countMap.get(m.id) ?? 0,
+      })),
+    });
+  } catch (e) {
+    return apiError(e);
+  }
 }
 
 /** POST /api/members → add a custom family member. */
 export async function POST(req: Request) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    return await createMember(req);
+  } catch (e) {
+    return apiError(e);
+  }
+}
+
+async function createMember(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { nameEn?: string; nameHi?: string; aliases?: string[]; color?: string; icon?: string };
   const nameEn = (body.nameEn ?? body.nameHi ?? "").trim().slice(0, 60);
   const nameHi = (body.nameHi ?? body.nameEn ?? "").trim().slice(0, 60);

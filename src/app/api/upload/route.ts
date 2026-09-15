@@ -7,6 +7,7 @@ import { detectMember } from "@/lib/classifier";
 import { DOC_TYPE_MAP } from "@/lib/docTypes";
 import { analyzeDocument, takeAnalysis, type Analysis } from "@/lib/analyze";
 import { sanitizeName } from "@/lib/naming";
+import { apiError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -130,6 +131,16 @@ async function storeDocument(
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleUpload(req);
+  } catch (e) {
+    // A database hiccup (connection, missing table…) must reach the user as
+    // a readable message — never as an opaque 500 HTML page.
+    return apiError(e);
+  }
+}
+
+async function handleUpload(req: NextRequest) {
   if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
 
   const form = await req.formData();

@@ -356,6 +356,40 @@ const en = {
   ai_reread: "Read again & sort",
   ai_reread_done: "Read it again — details updated",
   act_reanalyze: "Re-read by AI",
+
+  // ── v4: paper scanner (Adobe-Scan style) ──
+  tile_scanpaper: "Paper Scanner",
+  tile_scanpaper_sub: "Camera scan, auto-clean like Adobe Scan",
+  scan_title: "Paper Scanner",
+  scan_sub: "Point the camera at the paper. The vault finds the edges, straightens it and cleans it up — like Adobe Scan.",
+  scan_open: "Open Scanner",
+  scan_open_sub: "Best in good light. Hold steady for a second.",
+  scan_choose_photo: "Or scan a photo file",
+  scan_no_camera: "No camera is available on this device. You can still scan a photo file instead.",
+  scan_hint_frame: "Move the paper until the orange frame fits its edges",
+  scan_ready: "Paper found — press the big button",
+  scan_detecting: "Looking for the paper…",
+  scan_capture: "Capture Page",
+  scan_adjust_title: "Fit the corners",
+  scan_adjust_sub: "Drag the orange corners onto the paper's corners — the preview straightens live.",
+  scan_manual_hint: "Couldn't auto-fit. No problem — drag the four corners yourself.",
+  scan_retake: "Retake",
+  scan_use_page: "Use This Page",
+  scan_finish: "Finish",
+  scan_add_page: "Add Another Page",
+  scan_pages_title: "Your scan is ready",
+  scan_pages_sub: "{n} page(s). Check the order, then save to the vault.",
+  scan_page: "Page",
+  scan_save_vault: "Save to Vault",
+  scan_preparing: "Preparing your scan…",
+  scan_done: "Scan ready — now check the name and person on the next screen.",
+  scan_move_up: "Move up",
+  scan_move_down: "Move down",
+  scan_remove: "Remove page",
+
+  // ── v4: database health ──
+  db_banner: "The database is not connected, so new files can't be saved yet. Fix DATABASE_URL in the .env file (then run: npx drizzle-kit push). I keep checking — no need to restart.",
+  upload_db_err: "The vault's database is not connected — nothing can be saved right now.",
 };
 
 export type DictKey = keyof typeof en;
@@ -697,6 +731,40 @@ const hi: Record<DictKey, string> = {
   ai_reread: "फिर से पढ़ें व सजाएँ",
   ai_reread_done: "फिर से पढ़ लिया — विवरण बदल गए",
   act_reanalyze: "AI ने फिर पढ़ा",
+
+  // ── v4: paper scanner (Adobe-Scan style) ──
+  tile_scanpaper: "पेपर स्कैनर",
+  tile_scanpaper_sub: "कैमरा से स्कैन — एडोब जैसा अपने आप साफ़",
+  scan_title: "पेपर स्कैनर",
+  scan_sub: "कैमरा कागज़ की तरफ़ रखें। तिजोरी किनारे ढूँढेगी, कागज़ सीधा करेगी और साफ़ कर देगी — एडोब स्कैन जैसा।",
+  scan_open: "स्कैनर खोलें",
+  scan_open_sub: "अच्छी रोशनी में। एक पल स्थिर खड़े रहें।",
+  scan_choose_photo: "या फोटो फ़ाइल स्कैन करें",
+  scan_no_camera: "इस डिवाइस पर कैमरा उपलब्ध नहीं है। फोटो फ़ाइल स्कैन कर सकते हैं।",
+  scan_hint_frame: "कागज़ हिलाएँ जब तक नारंगी फ्रेम उसके किनारों पर न आ जाए",
+  scan_ready: "कागज़ मिल गया — बड़ा बटन दबाएँ",
+  scan_detecting: "कागज़ ढूँढा जा रहा है…",
+  scan_capture: "पेज लें",
+  scan_adjust_title: "कोनों को जमाएँ",
+  scan_adjust_sub: "नारंगी कोने कागज़ के कोनों पर खींचें — प्रीव्यू अपने आप सीधा होता है।",
+  scan_manual_hint: "खुद नहीं जुड़ सका। कोई बात नहीं — चारों कोने खुद खींच लें।",
+  scan_retake: "फिर लें",
+  scan_use_page: "यह पेज रखें",
+  scan_finish: "फिनिश",
+  scan_add_page: "और पेज जोड़ें",
+  scan_pages_title: "आपका स्कैन तैयार है",
+  scan_pages_sub: "{n} पेज। क्रम देखें, फिर तिजोरी में सहेजें।",
+  scan_page: "पेज",
+  scan_save_vault: "तिजोरी में सहेजें",
+  scan_preparing: "स्कैन तैयार हो रहा है…",
+  scan_done: "स्कैन तैयार — अब अगली स्क्रीन पर नाम व व्यक्ति जाँच लें।",
+  scan_move_up: "ऊपर ले जाएँ",
+  scan_move_down: "नीचे ले जाएँ",
+  scan_remove: "पेज हटाएँ",
+
+  // ── v4: database health ──
+  db_banner: "डेटाबेस नहीं जुड़ा है, इसलिए अभी नई फ़ाइलें सहेजी नहीं जा सकतीं। .env फ़ाइल में DATABASE_URL ठीक करें (फिर चलाएँ: npx drizzle-kit push)। मैं लगातार जाँचता रहूँगा — रीस्टार्ट की ज़रूरत नहीं।",
+  upload_db_err: "तिजोरी का डेटाबेस नहीं जुड़ा — अभी कुछ भी सहेजा नहीं जा सकता।",
 };
 
 const dicts: Record<Lang, Record<DictKey, string>> = { en, hi };
