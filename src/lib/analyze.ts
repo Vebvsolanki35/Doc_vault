@@ -16,6 +16,8 @@ import { aiClassify } from "./ai";
 export type Analysis = {
   ocrText: string;
   engine: "tesseract" | "pdf-text" | "none";
+  /** set when reading was skipped (e.g. the native image engine is missing) */
+  ocrReason: string | null;
   ocrConfidence: number;
   folder: FolderKey;
   docType: string;
@@ -74,7 +76,7 @@ export async function analyzeDocument(buffer: Buffer, mime: string, fileName: st
   tags.confidence = confidence;
 
   return {
-    ocrText: ocr.text.slice(0, 20000), engine: ocr.engine, ocrConfidence: ocr.confidence,
+    ocrText: ocr.text.slice(0, 20000), engine: ocr.engine, ocrReason: ocr.reason ?? null, ocrConfidence: ocr.confidence,
     folder, docType, confidence, memberKey, memberConfidence, suggestedTitle, tags, summary, ai, ms: Date.now() - t0,
   };
 }

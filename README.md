@@ -79,6 +79,41 @@ returns). A failed save also shows the *reason* on the card, e.g.:
 With Neon specifically, after setting `DATABASE_URL=postgresql://…?sslmode=require`
 run **`npx drizzle-kit push`** (creates the tables) — then saves work.
 
+### ☁️ Deploying to Vercel — the three things that must be true
+
+1. **`DATABASE_URL` exists in the Vercel project** (Settings → Environment Variables,
+   Production *and* Preview). Missing → every route answers
+   `503 db:config: DATABASE_URL is not set …`.
+2. **The schema has been pushed once** against that database:
+   `DATABASE_URL="<neon connection string>" npx drizzle-kit push`
+   (nothing else is needed; `push` is idempotent and never deletes data).
+   Without it, `/api/members`, `/api/documents`, `/api/stats` and `/api/lock`
+   answer `500 db:schema: relation "settings" does not exist` — a reachable
+   database with missing tables, *not* a connection problem.
+3. **The native image engine ships with the functions.** `sharp` dlopen()s
+   `libvips-cpp.so` at runtime, which static file tracing cannot see, so
+   `next.config.ts` lists `sharp`, `@img/*`, `@napi-rs/canvas*`, `tesseract.js*`
+   and `@tesseract.js-data/**` under `outputFileTracingIncludes`. Do not remove
+   those globs: without them the deployment fails with
+   `Failed to load external module sharp / ERR_DLOPEN_FAILED: libvips-cpp.so …`.
+   (Verified by building and running sharp against the traced `.nft.json` file
+   list alone.)
+
+`GET /api/health` reports the truth for all three, and the app shows a banner
+when something is wrong:
+
+```json
+{ "ok": false,
+  "db": { "ok": false, "code": "db:schema", "missingTables": ["settings"] },
+  "imageEngine": { "ok": true, "error": null },
+  "smart": { "ocr": true, "ai": false } }
+```
+
+If the image engine is missing, the vault keeps working: images are filed by
+name/type, `/api/analyze` still reads PDF text layers, and image-only endpoints
+answer `503 engine:sharp: …` instead of crashing the whole route. Nothing is
+ever reported as a success when it did not happen.
+
 ## 🚀 चलाने का तरीका (हिंदी — पिताजी के लिए)
 
 1. कंप्यूटर पर Docker Desktop चालू करें।
@@ -111,6 +146,8 @@ Vitest                                45 unit tests (size accuracy, classifier, 
 - **All UI strings** in `src/lib/i18n.ts`; Hindi is LTR (Devanagari) — no RTL flip needed.
 - Env vars: `DATABASE_URL` (required), `REDIS_URL` (optional), `SMS_WEBHOOK_URL`
   (optional OTP SMS provider — without it the OTP is logged server-side and shown in dev).
+- Fonts are **self-hosted** (`@fontsource-variable/*`) so `next build` never needs
+  network access to Google Fonts — builds work in restricted CI/Vercel networks.
 
 ## ♿ Accessibility (WCAG 2.1 AA)
 

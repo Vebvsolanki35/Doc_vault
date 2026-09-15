@@ -5,8 +5,9 @@
  *    medium → max 800px
  *    high   → max 2000px  (≈300 DPI print quality)
  */
-import sharp from "sharp";
+import type { Sharp } from "sharp";
 import { PDFDocument } from "pdf-lib";
+import { getSharp } from "./imageEngine";
 
 export type Quality = "low" | "medium" | "high";
 export const QUALITY_DIM: Record<Quality, number> = { low: 300, medium: 800, high: 2000 };
@@ -17,6 +18,7 @@ export function isImage(mime: string): boolean {
 }
 
 async function toJpegBuffer(input: Buffer, quality: Quality, dimCap?: number): Promise<{ buf: Buffer; w: number; h: number }> {
+  const sharp = await getSharp();
   const img = sharp(input).rotate(); // respect EXIF orientation
   const meta = await img.metadata();
   const maxDim = dimCap ?? QUALITY_DIM[quality];
@@ -36,6 +38,7 @@ export async function convertImage(
   format: "jpg" | "png" | "pdf",
   quality: Quality,
 ): Promise<{ data: Buffer; mime: string; ext: string }> {
+  const sharp = await getSharp();
   const maxDim = QUALITY_DIM[quality];
   if (format === "png") {
     const data = await sharp(input).rotate().resize({ width: maxDim, height: maxDim, fit: "inside", withoutEnlargement: true }).png().toBuffer();
@@ -64,11 +67,17 @@ export async function convertImage(
   return { data, mime: "application/pdf", ext: "pdf" };
 }
 
-/** Merge many image documents into one PDF. Non-images are skipped. */
+/**
+ * Merge many image documents into one PDF. Individually unreadable images are
+ * skipped, but an unusable image engine must NOT be swallowed: that used to
+ * return an empty, page-less PDF with HTTP 200 — a wrong "successful" result.
+ * The engine error now propagates so the caller can report it.
+ */
 export async function mergeImagesToPdf(
   items: { name: string; buffer: Buffer }[],
   quality: Quality,
 ): Promise<Buffer> {
+  await getSharp(); // fail loudly & early if the native engine is missing
   const pdf = await PDFDocument.create();
   for (const item of items) {
     try {
@@ -80,8 +89,11 @@ export async function mergeImagesToPdf(
       const page = pdf.addPage([pw, ph]);
       page.drawImage(jpg, { x: 0, y: 0, width: pw, height: ph });
     } catch {
-      /* skip unreadable image */
+      /* skip an unreadable image — reported when nothing could be merged */
     }
+  }
+  if (pdf.getPageCount() === 0) {
+    throw new Error("no readable images to merge");
   }
   return Buffer.from(await pdf.save());
 }
@@ -117,6 +129,7 @@ export async function convertPdf(
   baseName: string,
   maxPages = 30,
 ): Promise<{ data: Buffer; mime: string; ext: string; pages: number }> {
+  const sharp = await getSharp();
   const total = Math.min(await pdfPageCount(pdf), maxPages);
   const pages: Buffer[] = [];
   for (let i = 1; i <= total; i++) {

@@ -15,7 +15,8 @@
  *  call and the actual download stay in perfect sync.
  * ─────────────────────────────────────────────────────────────────────────
  */
-import sharp, { type Sharp, type Metadata } from "sharp";
+import type { Sharp, Metadata } from "sharp";
+import { getSharp } from "./imageEngine";
 import { PDFDocument } from "pdf-lib";
 import JSZip from "jszip";
 import { createHash } from "crypto";
@@ -79,6 +80,7 @@ async function jpegAt(img: Sharp, quality: number): Promise<Buffer> {
 }
 
 export async function sizeImage(input: Buffer, targetBytes: number, outFormat: "jpg" | "png"): Promise<SizeTarget> {
+  const sharp = await getSharp();
   const meta = await sharp(input).metadata();
   let width = Math.min(meta.width ?? 1200, MAX_DIM);
   let height = Math.min(meta.height ?? 1600, MAX_DIM);
@@ -252,10 +254,16 @@ export async function sizePdf(input: Buffer, targetBytes: number): Promise<SizeT
   for (let i = 0; i < jpegs.length; i++) {
     try {
       const sized = await sizeImage(jpegs[i], perImageBudgets[i], "jpg");
+      const sharp = await getSharp();
       const meta = await sharp(sized.buffer).metadata();
       processed.push({ buf: sized.buffer, w: meta.width ?? 800, h: meta.height ?? 1100 });
     } catch {
-      const meta = await sharp(jpegs[i]).metadata().catch(() => ({ width: 800, height: 1100 }) as Metadata);
+      // unreadable image — or no image engine at all: keep the original bytes
+      let meta: Pick<Metadata, "width" | "height"> = { width: 800, height: 1100 };
+      try {
+        const sharp = await getSharp();
+        meta = await sharp(jpegs[i]).metadata();
+      } catch { /* engine unavailable → default page size */ }
       processed.push({ buf: jpegs[i], w: meta.width ?? 800, h: meta.height ?? 1100 });
     }
   }
@@ -307,6 +315,7 @@ export async function compressToTarget(
     // For image→PDF @ target: shrink image into budget then wrap
     const budget = Math.max(15000, Math.floor(targetBytes * 0.9));
     const sized = await sizeImage(input, budget, "jpg");
+    const sharp = await getSharp();
     const pdf = await PDFDocument.create();
     const img = await pdf.embedJpg(toU8(sized.buffer));
     const meta = await sharp(sized.buffer).metadata();

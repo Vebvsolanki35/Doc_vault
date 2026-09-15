@@ -92,10 +92,17 @@ async function storeDocument(
   }
   if (!folder && member) folder = await findFolder(member.id, folderKey);
 
-  // Replace-by-name: keep old bytes as the recoverable previous version
+  // Replace-by-name: keep old bytes as the recoverable previous version.
+  // An empty roster (fresh database, before any member exists) must not turn
+  // into `memberId = ''`, which Postgres rejects as an invalid uuid → 500.
+  const lookupMemberId = member && isUuid(member.id) ? member.id : null;
   const existing = dup[0] ?? (
     await db.select().from(documents).where(
-      and(eq(documents.name, name), eq(documents.memberId, member?.id ?? ""), isNull(documents.deletedAt)),
+      and(
+        eq(documents.name, name),
+        lookupMemberId ? eq(documents.memberId, lookupMemberId) : isNull(documents.memberId),
+        isNull(documents.deletedAt),
+      ),
     ).limit(1)
   )[0];
   const prev: Pick<NewDocument, "prevFileData" | "prevChecksum" | "prevSize"> = {

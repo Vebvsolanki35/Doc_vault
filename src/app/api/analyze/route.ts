@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         : suggestName(member?.nameEn ?? null, a.docType !== "other" ? docTypeLabel(a.docType, "en") : null, name),
       tags: a.tags,
       summary: a.summary,
-      ocr: { engine: a.engine, confidence: a.ocrConfidence, chars: a.ocrText.length, preview: a.ocrText.slice(0, 240) },
+      ocr: { engine: a.engine, confidence: a.ocrConfidence, chars: a.ocrText.length, preview: a.ocrText.slice(0, 240), reason: a.ocrReason },
       ai: a.ai,
       ms: a.ms,
     });

@@ -14,9 +14,16 @@
 import path from "path";
 import fs from "fs";
 import os from "os";
-import sharp from "sharp";
+import { getSharp, imageEngineErrorText } from "./imageEngine";
 
-export type OcrResult = { text: string; confidence: number; engine: "tesseract" | "pdf-text" | "none"; ms: number };
+export type OcrResult = {
+  text: string;
+  confidence: number;
+  engine: "tesseract" | "pdf-text" | "none";
+  ms: number;
+  /** why recognition was skipped (missing native engine, worker failure …) */
+  reason?: string;
+};
 
 const OCR_ENABLED = process.env.OCR_DISABLED !== "1";
 const OCR_LANGS = (process.env.OCR_LANGS || "eng+hin").split("+").filter(Boolean);
@@ -66,6 +73,7 @@ async function getWorker(): Promise<Worker> {
 
 /** Clean a photo so the recogniser sees crisp dark text on light paper. */
 async function prepare(input: Buffer): Promise<Buffer> {
+  const sharp = await getSharp();
   return sharp(input)
     .rotate()
     .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: "inside", withoutEnlargement: true })
@@ -89,16 +97,19 @@ async function recognise(png: Buffer): Promise<{ text: string; confidence: numbe
   return { text: (data.text || "").replace(/[ \t]+\n/g, "\n").trim(), confidence: data.confidence ?? 0 };
 }
 
-/** OCR an image buffer (JPG/PNG/WebP/HEIC…). Never throws — returns empty text on failure. */
+/**
+ * OCR an image buffer (JPG/PNG/WebP/HEIC…). Never throws — returns empty text
+ * plus a `reason` so a missing native engine is reported instead of hidden.
+ */
 export async function ocrImage(input: Buffer): Promise<OcrResult> {
   const t = Date.now();
-  if (!OCR_ENABLED) return { text: "", confidence: 0, engine: "none", ms: 0 };
+  if (!OCR_ENABLED) return { text: "", confidence: 0, engine: "none", ms: 0, reason: "OCR_DISABLED=1" };
   try {
     const png = await prepare(input);
     const r = await serial(() => recognise(png));
     return { ...r, engine: "tesseract", ms: Date.now() - t };
-  } catch {
-    return { text: "", confidence: 0, engine: "none", ms: Date.now() - t };
+  } catch (e) {
+    return { text: "", confidence: 0, engine: "none", ms: Date.now() - t, reason: imageEngineErrorText(e) };
   }
 }
 
@@ -124,8 +135,8 @@ export async function ocrPdf(input: Buffer): Promise<OcrResult> {
       conf += r.confidence;
     }
     return { text: texts.join("\n\n"), confidence: pages ? conf / pages : 0, engine: "tesseract", ms: Date.now() - t };
-  } catch {
-    return { text: layer, confidence: 0, engine: "none", ms: Date.now() - t };
+  } catch (e) {
+    return { text: layer, confidence: 0, engine: "none", ms: Date.now() - t, reason: imageEngineErrorText(e) };
   }
 }
 
