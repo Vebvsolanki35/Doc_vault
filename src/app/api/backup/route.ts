@@ -3,15 +3,17 @@ import JSZip from "jszip";
 import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { isUnlocked, setSetting } from "@/lib/vault";
+import { apiError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 /** GET /api/backup → whole vault as one ZIP, neatly foldered by category. */
 export async function GET(_req: NextRequest) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
 
-  const rows = await db.select().from(documents);
+    const rows = await db.select().from(documents);
   const zip = new JSZip();
   const manifest: Record<string, unknown> = { createdAt: new Date().toISOString(), count: rows.length, files: [] as unknown[] };
 
@@ -32,4 +34,7 @@ export async function GET(_req: NextRequest) {
       "Cache-Control": "no-store",
     },
   });
+  } catch (e) {
+    return apiError(e);
+  }
 }

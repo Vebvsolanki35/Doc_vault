@@ -1,10 +1,10 @@
 /* Smart Tijori service worker — offline-first vault shell + recent documents. */
-const VERSION = "tijori-v1";
+const VERSION = "tijori-v2";
 const SHELL_CACHE = `${VERSION}-shell`;
 const DOC_CACHE = `${VERSION}-docs`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
-const SHELL_URLS = ["/", "/upload", "/documents", "/search", "/settings", "/help", "/manifest.webmanifest", "/icons/icon-512.png"];
+const SHELL_URLS = ["/", "/upload", "/scan", "/documents", "/search", "/settings", "/help", "/manifest.webmanifest", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

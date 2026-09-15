@@ -3,6 +3,7 @@ import { eq, isNull, and, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, members } from "@/db/schema";
 import { audit, isUnlocked } from "@/lib/vault";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -10,9 +11,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** PATCH { nameEn?, nameHi?, aliases?, color?, icon? } → rename / restyle a family member. */
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { nameEn?: string; nameHi?: string; aliases?: string[]; color?: string; icon?: string };
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await req.json().catch(() => ({}))) as { nameEn?: string; nameHi?: string; aliases?: string[]; color?: string; icon?: string };
   const rows = await db.select().from(members).where(eq(members.id, id)).limit(1);
   if (!rows[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
 
@@ -27,6 +30,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const [updated] = await db.update(members).set(patch).where(eq(members.id, id)).returning();
   await audit("member_rename", rows[0].nameEn, { to: updated.nameEn });
   return NextResponse.json({ member: updated });
+  } catch (e) {
+    return apiError(e);
+  }
 }
 
 /**
@@ -36,8 +42,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
  * The last remaining member can never be deleted.
  */
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
   const rows = await db.select().from(members).where(eq(members.id, id)).limit(1);
   const m = rows[0];
   if (!m) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -64,4 +72,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   await db.delete(members).where(eq(members.id, id)); // folders cascade
   await audit("member_delete", m.nameEn, { movedTo: moveTo ?? null });
   return NextResponse.json({ ok: true });
+  } catch (e) {
+    return apiError(e);
+  }
 }

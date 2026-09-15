@@ -5,6 +5,7 @@ import { documents } from "@/db/schema";
 import { audit, findFolder, getRoster, isUnlocked, publicDoc } from "@/lib/vault";
 import { analyzeDocument } from "@/lib/analyze";
 import { DOC_TYPE_MAP } from "@/lib/docTypes";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -18,9 +19,11 @@ type Ctx = { params: Promise<{ id: string }> };
  *                          person/folder when it's confident.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { apply?: boolean };
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await req.json().catch(() => ({}))) as { apply?: boolean };
   const rows = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
   const doc = rows[0];
   if (!doc) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -59,4 +62,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     .returning();
   await audit("reanalyze", doc.name, { type: a.docType, member: member?.key ?? null, moved: !!changeFolder, ai: a.ai });
   return NextResponse.json({ plan, document: publicDoc(updated) });
+  } catch (e) {
+    return apiError(e);
+  }
 }

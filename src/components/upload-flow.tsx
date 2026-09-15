@@ -12,9 +12,10 @@
  *     → duplicates offer Replace / Keep-both / Skip; offline files wait in the outbox.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Camera, CheckCircle2, CloudUpload, CopyCheck, FileText, ImagePlus, Loader2, Pencil, Save, ScanLine, Sparkles, Trash2, Wand2, WifiOff, X,
+  Camera, CheckCircle2, CloudUpload, CopyCheck, FileText, ImagePlus, Loader2, Pencil, Save, ScanLine, ScanText, Sparkles, Trash2, Wand2, WifiOff, X,
 } from "lucide-react";
 import { useLanguage, toast } from "./providers";
 import {
@@ -22,6 +23,7 @@ import {
 } from "./widgets";
 import { folderDisplayName, type FolderLite } from "./doc-browser";
 import { outboxAdd, outboxList, outboxRemove, type OutboxItem } from "@/lib/outbox";
+import { takeScanFiles } from "@/lib/scan/handoff";
 import { classify, type FolderKey } from "@/lib/classifier";
 import { detectDocType, docTypeLabel, DOC_TYPES, DOC_TYPE_MAP } from "@/lib/docTypes";
 import { extOf, stripExt, suggestName } from "@/lib/naming";
@@ -54,6 +56,8 @@ type QueueItem = {
   doc?: DocMeta;
   detected?: Detected;
   existing?: DocMeta;
+  /** server-side error text (e.g. "db:connect: …") when the save failed */
+  error?: string | null;
 };
 
 type UploadResult = { doc?: DocMeta; detected?: Detected; duplicate?: boolean; existing?: DocMeta };
@@ -64,14 +68,18 @@ async function uploadFile(file: File, meta: Record<string, string>, onProgress: 
     fd.append("mime", file.type || "application/octet-stream");
     for (const [k, v] of Object.entries(meta)) if (v) fd.append(k, v);
   };
+  const fail = async (res: Response) => {
+    const json = await res.json().catch(() => ({}));
+    if (res.status === 409) return { duplicate: true, existing: json.existing } as UploadResult;
+    throw new Error(String(json.error ?? `upload failed (${res.status})`));
+  };
   if (file.size <= CHUNK * 1.5) {
     const fd = new FormData();
     fd.append("file", file);
     append(fd);
     const res = await fetch("/api/upload", { method: "POST", body: fd });
+    if (!res.ok) return fail(res);
     const json = await res.json();
-    if (res.status === 409) return { duplicate: true, existing: json.existing };
-    if (!res.ok) throw new Error(json.error ?? "upload failed");
     onProgress(1);
     return { doc: json.document, detected: json.detected };
   }
@@ -90,9 +98,8 @@ async function uploadFile(file: File, meta: Record<string, string>, onProgress: 
         fd.append("totalChunks", String(totalChunks));
         append(fd);
         const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!res.ok) return await fail(res);
         const json = await res.json();
-        if (res.status === 409) return { duplicate: true, existing: json.existing };
-        if (!res.ok) throw new Error(json.error ?? "chunk failed");
         onProgress((i + 1) / totalChunks);
         if (json.done) return { doc: json.document, detected: json.detected };
         break;
@@ -110,6 +117,7 @@ const ACCEPT = "image/*,application/pdf,.heic,.heif";
 
 export default function UploadFlow() {
   const { t, lang } = useLanguage();
+  const router = useRouter();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [members, setMembers] = useState<MemberLite[]>([]);
   const [memberFolders, setMemberFolders] = useState<Record<string, FolderLite[]>>({});
@@ -227,18 +235,31 @@ export default function UploadFlow() {
       if (duplicate) { update(key, { status: "duplicate", existing }); return; }
       update(key, { status: "scanning" });
       setTimeout(() => update(key, { status: "done", doc, detected }), 900);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       if (!navigator.onLine) {
         await outboxAdd({ id: key, name: meta.name, type: it.file.type, blob: it.file, addedAt: Date.now(), meta }).catch(() => {});
         update(key, { status: "offline" });
         refreshOutbox();
         toast(t("upload_offline"), "warn");
       } else {
-        update(key, { status: "error" });
-        toast(t("upload_fail"), "warn");
+        update(key, { status: "error", error: msg });
+        toast(msg.startsWith("db:") ? t("upload_db_err") : t("upload_fail"), "warn");
       }
     }
   }, [items, update, refreshOutbox, t]);
+
+  // ── Paper Scanner handoff: finished scans land in the review queue ──
+  const handoffDone = useRef(false);
+  useEffect(() => {
+    if (handoffDone.current) return;
+    handoffDone.current = true;
+    const handed = takeScanFiles();
+    if (!handed.length) return;
+    // the scanner already toasted; the review cards announce themselves
+    const tm = setTimeout(() => addFiles(handed), 0);
+    return () => clearTimeout(tm);
+  }, [addFiles]);
 
   const saveAll = async () => {
     const pending = items.filter((i) => i.status === "review");
@@ -348,7 +369,10 @@ export default function UploadFlow() {
           <button onClick={() => camRef.current?.click()} className="btn-accent w-full !text-2xl sm:w-auto">
             <Camera className="h-8 w-8" aria-hidden /> {t("upload_camera")}
           </button>
-          <button onClick={() => pickRef.current?.click()} className="btn-primary w-full !text-2xl sm:w-auto">
+          <button onClick={() => router.push("/scan")} className="btn-primary w-full !text-2xl sm:w-auto">
+            <ScanText className="h-8 w-8" aria-hidden /> {t("tile_scanpaper")}
+          </button>
+          <button onClick={() => pickRef.current?.click()} className="btn-ghost w-full !text-2xl sm:w-auto">
             <ImagePlus className="h-8 w-8" aria-hidden /> {t("upload_choose")}
           </button>
         </div>
@@ -597,10 +621,13 @@ function ProgressCard({ item, members, memberFolders, onRefile, onRename, onDupl
         )}
         {item.status === "offline" && <p className="mt-2 flex items-center gap-2 text-lg font-bold text-saffron-deep"><WifiOff className="h-6 w-6" aria-hidden /> {t("upload_offline")}</p>}
         {item.status === "error" && (
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <p className="text-lg font-bold text-danger">{t("upload_fail")}</p>
-            <button onClick={onRetry} className="btn-ghost !min-h-[48px] !text-base">{t("upload_save")}</button>
-            <button onClick={onDismiss} className="btn-ghost !min-h-[48px] !text-base">{t("upload_remove")}</button>
+          <div className="mt-2">
+            <p className="text-lg font-bold text-danger">{item.error?.startsWith("db:") ? t("upload_db_err") : t("upload_fail")}</p>
+            {item.error && <p className="mt-1 break-words rounded-xl bg-danger-tint px-3 py-2 font-mono text-sm text-danger">{item.error}</p>}
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <button onClick={onRetry} className="btn-ghost !min-h-[48px] !text-base">{t("upload_save")}</button>
+              <button onClick={onDismiss} className="btn-ghost !min-h-[48px] !text-base">{t("upload_remove")}</button>
+            </div>
           </div>
         )}
 

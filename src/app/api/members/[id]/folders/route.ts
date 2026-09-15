@@ -3,6 +3,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, folders } from "@/db/schema";
 import { isUnlocked } from "@/lib/vault";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,9 +12,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** GET → folders of a member, each with a live document count. */
 export async function GET(_req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
-  const rows = await db.select().from(folders).where(eq(folders.memberId, id)).orderBy(asc(folders.sort), asc(folders.createdAt));
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const rows = await db.select().from(folders).where(eq(folders.memberId, id)).orderBy(asc(folders.sort), asc(folders.createdAt));
   const counts = await db
     .select({ folderId: documents.folderId, n: sql<number>`count(*)::int` })
     .from(documents)
@@ -23,13 +26,18 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   return NextResponse.json({
     folders: rows.map((f) => ({ ...f, docCount: countMap.get(f.id) ?? 0 })),
   });
+  } catch (e) {
+    return apiError(e);
+  }
 }
 
 /** POST → create a custom folder ("Medical Reports"…) inside the member's space. */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { name?: string; nameHi?: string };
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await req.json().catch(() => ({}))) as { name?: string; nameHi?: string };
   const name = (body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
   const existing = await db.select().from(folders).where(eq(folders.memberId, id));
@@ -45,4 +53,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     })
     .returning();
   return NextResponse.json({ folder: row });
+  } catch (e) {
+    return apiError(e);
+  }
 }

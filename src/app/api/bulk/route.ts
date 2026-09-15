@@ -4,16 +4,18 @@ import JSZip from "jszip";
 import { db } from "@/db";
 import { documents, folders } from "@/db/schema";
 import { audit, isUnlocked } from "@/lib/vault";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 /** POST /api/bulk { action: "zip" | "delete" | "move", ids: [...], folderId? } */
 export async function POST(req: NextRequest) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { action?: string; ids?: string[]; folderId?: string };
-  const ids = body.ids ?? [];
-  if (!body.action || ids.length === 0) return NextResponse.json({ error: "action + ids required" }, { status: 400 });
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const body = (await req.json().catch(() => ({}))) as { action?: string; ids?: string[]; folderId?: string };
+    const ids = (body.ids ?? []).filter(isUuid); // garbage ids must not reach Postgres as uuid params
+    if (!body.action || ids.length === 0) return NextResponse.json({ error: "action + ids required" }, { status: 400 });
 
   const rows = await db
     .select()
@@ -22,6 +24,7 @@ export async function POST(req: NextRequest) {
 
   // ── Move to folder ──
   if (body.action === "move" && body.folderId) {
+    if (!isUuid(body.folderId)) return NextResponse.json({ error: "folder not found" }, { status: 404 });
     const f = await db.select().from(folders).where(eq(folders.id, body.folderId)).limit(1);
     if (!f[0]) return NextResponse.json({ error: "folder not found" }, { status: 404 });
     for (const d of rows) {
@@ -62,4 +65,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ error: "unknown action" }, { status: 400 });
+  } catch (e) {
+    return apiError(e);
+  }
 }

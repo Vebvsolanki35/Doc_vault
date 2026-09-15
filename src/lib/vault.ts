@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { and, asc, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { auditLogs, documents, folders, members, settings } from "@/db/schema";
+import { isUuid } from "@/lib/apiError";
 
 export const UNLOCK_COOKIE = "vault_unlocked";
 export const RECOVERY_COOKIE = "vault_recovery";
@@ -96,6 +97,7 @@ export async function getFoldersFor(memberId: string) {
 
 /** Find a member's default folder row for a key (fallback: their "other"). */
 export async function findFolder(memberId: string, key: string) {
+  if (!isUuid(memberId)) return null; // garbage id must not reach Postgres as a uuid param
   const rows = await db.select().from(folders).where(eq(folders.memberId, memberId));
   return rows.find((f) => f.key === key) ?? rows.find((f) => f.key === "other") ?? rows[0] ?? null;
 }

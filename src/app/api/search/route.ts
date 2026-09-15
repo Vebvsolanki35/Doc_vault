@@ -6,16 +6,18 @@ import { documents, members } from "@/db/schema";
 import { isUnlocked, publicDoc, purgeExpiredBin } from "@/lib/vault";
 import { parseIntent } from "@/lib/nlp";
 import { termVariants } from "@/lib/transliterate";
+import { apiError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/search?q=पापा की मार्कशीट  →  intent (member + folder + time) + ranked results */
 export async function GET(req: NextRequest) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  await purgeExpiredBin();
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    await purgeExpiredBin();
 
-  const q = req.nextUrl.searchParams.get("q") ?? "";
+    const q = req.nextUrl.searchParams.get("q") ?? "";
   if (!q.trim()) return NextResponse.json({ intent: null, results: [] });
 
   const intent = parseIntent(q);
@@ -86,4 +88,7 @@ export async function GET(req: NextRequest) {
     },
     results: ranked.map((x) => publicDoc(x.r)),
   });
+  } catch (e) {
+    return apiError(e);
+  }
 }

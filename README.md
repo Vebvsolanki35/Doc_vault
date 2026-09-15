@@ -16,6 +16,7 @@ files it in the right folder — zero clicks.** Later, when a government portal 
 | **People, not just files** — add any number of family members (**/people**), rename them, pick a colour/icon, list the other names that appear on their papers, and remove them (documents move to someone else or to the Recycle Bin). Each person gets 5 folders: शिक्षा · पहचान पत्र · अंकतालिका · भूमि दस्तावेज़ · अन्य + custom folders | **लोग, सिर्फ़ फ़ाइलें नहीं** — जितने चाहें सदस्य जोड़ें, नाम बदलें, हटाएँ |
 | **Folders you control** — create, **rename** (even the default ones) and delete folders; documents from a deleted folder land safely in *Other* | **फ़ोल्डर आपके हाथ में** — बनाएँ, नाम बदलें, हटाएँ |
 | **Check → Name → Save upload** — every file first appears as a review card: **rename it right there**, choose the person, folder and *document type* (or leave any on "let the vault decide"); "Suggest name" gives *"Papa - Aadhaar Card"*; "Apply to all" copies the choice to a whole batch; **Save all** at once. Up to **100 MB per file**, chunked & resumable | **जाँचें → नाम दें → सहेजें** — अपलोड करते समय ही नाम बदलें |
+| **📄 Paper Scanner (Adobe-Scan style)** — point the phone camera at a paper; the vault finds the edges live, you capture, drag the 4 corners to fit, pick a finish (**Auto Clean · Black & White · Sepia · Original**), add up to 8 pages, and it becomes one clean scan — single page → crisp JPEG, many pages → one PDF at real paper size. All on-device: the photo never leaves the phone. Then the normal review card (name / person / type) saves it into the right folder | **📄 पेपर स्कैनर (एडोब-स्कैन जैसा)** — कैमरा कागज़ पर रखें; किनारे अपने आप मिलते हैं, कोने खींचें, फिनिश चुनें, 8 पेज तक जोड़ें — एक साफ़ स्कैन बनता है (एक पेज = JPG, कई पेज = एक PDF)। सब फ़ोन पर, फोटो बाहर नहीं जाती |
 | **Document types** — Aadhaar · PAN · Voter · Passport · Ration · Khasra/Khatauni · Registry · Naksha · Marksheet · Degree · Medical · Insurance … detected from the file name / PDF text, editable on any card. Browse **person-wise → folder-wise → type-wise**; search understands them (*"मम्मी का आधार"*, *"papa ki registry"*) | **कागज़ के प्रकार** — आधार-वार, पैन-वार, खसरा-वार देखें व खोजें |
 | **Rename anywhere** — pencil icon on every document card; the extension is kept for you | **कहीं भी नाम बदलें** |
 | **SmartScan still auto-files** what you leave on auto: member (by name aliases, Hindi or English) and folder; if unsure it asks *"क्या यह पापा का है?"* with one-tap confirm/change | **अपने-आप व्यवस्थित** — जो आप छोड़ दें, तिजोरी खुद तय करे |
@@ -63,6 +64,21 @@ npx vitest run
 
 **API reference:** see [`openapi.yaml`](./openapi.yaml) (import into Swagger Editor / Postman).
 
+### 🩺 "I can't save any file" — check the database
+
+If the app cannot reach PostgreSQL, every screen shows a **red banner** saying so
+(the app keeps checking and the banner disappears by itself when the connection
+returns). A failed save also shows the *reason* on the card, e.g.:
+
+| Message shown | What it means | Fix |
+| --- | --- | --- |
+| `db:connect: …ECONNREFUSED / timeout…` | The server can't reach the database at all | Check `DATABASE_URL` in `.env` (host, port, SSL, credentials). On Neon use the **pooled** or **direct** connection string with the `sslmode` your account needs. |
+| `db:schema: relation "…" does not exist` | Database is reachable but tables are missing | Run `npx drizzle-kit push` once with that `DATABASE_URL`. |
+| `db:schema: password authentication failed` | Wrong credentials in the URL | Fix the password in `DATABASE_URL`. |
+
+With Neon specifically, after setting `DATABASE_URL=postgresql://…?sslmode=require`
+run **`npx drizzle-kit push`** (creates the tables) — then saves work.
+
 ## 🚀 चलाने का तरीका (हिंदी — पिताजी के लिए)
 
 1. कंप्यूटर पर Docker Desktop चालू करें।
@@ -85,7 +101,7 @@ pdf-lib                               image→PDF, batch merge, scanned-PDF rebu
 unpdf                                 PDF text-layer extraction (SmartScan)
 Web Speech API + speechSynthesis      voice search & read-aloud & voice-guided setup (hi/en)
 IndexedDB outbox + Service Worker     offline queue + offline vault
-Vitest                                19 unit tests (size accuracy, classifier, NLP)
+Vitest                                45 unit tests (size accuracy, classifier, NLP, scanner detection & enhancement)
 ```
 
 - **All files live inside PostgreSQL** — nothing sensitive on the public file system.

@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, ChevronRight, DatabaseBackup, FolderOpen, HelpCircle, History, Mic, Recycle, ScanLine, Settings, Sun, UserPlus, Users,
+  ArrowRight, ChevronRight, DatabaseBackup, FolderOpen, HelpCircle, History, Mic, Recycle, ScanLine, ScanText, Settings, Sun, UserPlus, Users,
 } from "lucide-react";
 import { useLanguage } from "@/components/providers";
 import { MemberAvatar, PageIn, StorageGauge, memberDisplayName, type MemberLite } from "@/components/widgets";
@@ -108,8 +108,9 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Actions */}
-      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Tile href="/upload" icon={ScanLine} title={t("tile_scan")} sub={t("tile_scan_sub")} variant="accent" />
+      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <Tile href="/scan" icon={ScanText} title={t("tile_scanpaper")} sub={t("tile_scanpaper_sub")} variant="accent" />
+        <Tile href="/upload" icon={ScanLine} title={t("tile_scan")} sub={t("tile_scan_sub")} variant="plain" />
         <Tile href="/documents" icon={FolderOpen} title={t("tile_docs")} sub={t("tile_docs_sub")} variant="plain" />
         <Tile href="/search" icon={Mic} title={t("tile_search")} sub={t("tile_search_sub")} variant="plain" />
         <Tile href="/settings" icon={Settings} title={t("tile_settings")} sub={t("tile_settings_sub")} variant="plain" />

@@ -53,7 +53,7 @@ export const DOC_TYPES: DocTypeDef[] = [
   { key: "medical", folder: "other", en: "Medical Report", hi: "मेडिकल रिपोर्ट", keywords: ["medical", "मेडिकल", "report", "रिपोर्ट", "prescription", "पर्ची", "hospital", "अस्पताल", "doctor", "डॉक्टर", "x-ray", "xray", "blood", "lab"] },
   { key: "insurance", folder: "other", en: "Insurance", hi: "बीमा", keywords: ["insurance", "बीमा", "policy", "पॉलिसी", "lic", "premium", "प्रीमियम"] },
   { key: "bill", folder: "other", en: "Bill / Receipt", hi: "बिल / रसीद", keywords: ["bill", "बिल", "receipt", "रसीद", "invoice", "इनवॉइस", "electricity", "बिजली", "rent", "किराया", "challan", "चालान"] },
-  { key: "photo", folder: "other", en: "Photo", hi: "फोटो", keywords: ["passport photo", "passport size", "पासपोर्ट साइज", "photo", "फोटो", "selfie", "img_", "dsc_", "whatsapp image"] },
+  { key: "photo", folder: "other", en: "Photo", hi: "फोटो", keywords: ["passport photo", "passport size", "पासपोर्ट साइज", "photo", "फोटो", "selfie", "img ", "dsc ", "whatsapp image"], pattern: /\b(?:img|dsc|dscn|pv)\d{3,}\b/i },
 ];
 
 export const DOC_TYPE_MAP: Record<string, DocTypeDef> = Object.fromEntries(DOC_TYPES.map((d) => [d.key, d]));

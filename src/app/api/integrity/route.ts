@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { isUnlocked, sha256 } from "@/lib/vault";
+import { apiError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -13,9 +14,10 @@ export const maxDuration = 120;
  * are restored automatically (and reported).
  */
 export async function POST(_req: NextRequest) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
 
-  const rows = await db.select().from(documents);
+    const rows = await db.select().from(documents);
   const restored: string[] = [];
   const broken: string[] = [];
 
@@ -33,4 +35,7 @@ export async function POST(_req: NextRequest) {
   }
 
   return NextResponse.json({ checked: rows.length, restored, broken, healthy: broken.length === 0 });
+  } catch (e) {
+    return apiError(e);
+  }
 }

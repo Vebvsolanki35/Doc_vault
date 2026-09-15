@@ -7,6 +7,7 @@ import { detectMember } from "@/lib/classifier";
 import { DOC_TYPE_MAP } from "@/lib/docTypes";
 import { analyzeDocument, takeAnalysis, type Analysis } from "@/lib/analyze";
 import { sanitizeName } from "@/lib/naming";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -78,8 +79,10 @@ async function storeDocument(
   if (!member) member = roster[0] ?? null;
 
   // ── Folder: explicit choice (must belong to the member) → by key ──
+  // (malformed uuids are treated as "not chosen" — a garbage id must never
+  // reach Postgres as a uuid parameter)
   let folder = null;
-  if (opts.folderId) {
+  if (opts.folderId && isUuid(opts.folderId)) {
     const rows = await db.select().from(folders).where(eq(folders.id, opts.folderId)).limit(1);
     if (rows[0]) {
       folder = rows[0];
@@ -130,6 +133,16 @@ async function storeDocument(
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleUpload(req);
+  } catch (e) {
+    // A database hiccup (connection, missing table…) must reach the user as
+    // a readable message — never as an opaque 500 HTML page.
+    return apiError(e);
+  }
+}
+
+async function handleUpload(req: NextRequest) {
   if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
 
   const form = await req.formData();
