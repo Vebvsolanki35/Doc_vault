@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
 import {
-  BadgeCheck, Check, Download, FileText, Gauge, Hourglass, Loader2, Pencil, Printer, QrCode, Ruler, Trash2, X,
+  BadgeCheck, Check, Download, FileText, Gauge, Hourglass, Loader2, Pencil, Printer, QrCode, Ruler, ScanSearch, Trash2, X,
 } from "lucide-react";
 import { docTypeLabel, DOC_TYPES } from "@/lib/docTypes";
 import { extOf, stripExt } from "@/lib/naming";
@@ -400,6 +400,7 @@ export function DocumentCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [typeOpen, setTypeOpen] = useState(false);
+  const [rereading, setRereading] = useState(false);
   const style = FOLDER_STYLE[doc.category] ?? FOLDER_STYLE.other;
   const ext = extOf(doc.name);
   const member = members.find((m) => m.id === doc.memberId);
@@ -425,6 +426,12 @@ export function DocumentCard({
     setTypeOpen(false);
     if (docType === (doc.docType ?? "other")) return;
     if (await patch({ docType })) onChanged();
+  };
+  const doReread = async () => {
+    setRereading(true);
+    const res = await fetch(`/api/documents/${doc.id}/reanalyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apply: true }) });
+    setRereading(false);
+    if (res.ok) { toast(t("ai_reread_done")); onChanged(); } else toast(t("error_generic"), "warn");
   };
   const doDelete = async () => {
     const res = await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
@@ -528,6 +535,7 @@ export function DocumentCard({
           <span>{formatBytes(doc.size)}</span>
         </p>
         <SmartTags tags={doc.tags} compact />
+        {doc.tags?.summary && <p className="mt-1 text-base text-ink-soft">{String(doc.tags.summary)}</p>}
       </div>
 
       <div className="flex items-center gap-2 self-end sm:self-center">
@@ -550,6 +558,9 @@ export function DocumentCard({
         ) : (
           <>
             <ReadAloudButton text={speakText} label={t("read_aloud")} />
+            <button onClick={doReread} disabled={rereading} className="btn-icon" aria-label={t("ai_reread")} title={t("ai_reread")}>
+              {rereading ? <Loader2 className="h-7 w-7 animate-spin text-saffron" aria-hidden /> : <ScanSearch className="h-7 w-7 text-[#1d4e77]" aria-hidden />}
+            </button>
             <button onClick={() => setDlOpen(true)} className="btn-icon" aria-label={t("dl_title")} title={t("dl_title")}>
               <Download className="h-7 w-7 text-leaf-deep" aria-hidden />
             </button>

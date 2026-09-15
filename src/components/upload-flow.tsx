@@ -46,6 +46,10 @@ type QueueItem = {
   folderId: string | null; // null → auto
   docType: string; // "auto" | key
   guessedType: string | null;
+  // AI / OCR analysis (runs as soon as the file is added)
+  analysis?: "pending" | "done" | "failed";
+  analysisId?: string | null;
+  read?: { engine: string; confidence: number; preview: string; summary: string | null; ai: string | null; memberConfidence: number; tags: Record<string, string | number> | null };
   // results
   doc?: DocMeta;
   detected?: Detected;
@@ -153,6 +157,36 @@ export default function UploadFlow() {
     return { guessedType: type?.type ?? null, folderKey, memberId };
   }, []);
 
+  /** Let the vault READ the file (OCR + optional AI) and pre-fill the review card. */
+  const analyze = useCallback(async (it: QueueItem) => {
+    if (it.file.size > 40 * 1024 * 1024) return; // huge files: skip pre-read, server still scans on save
+    update(it.key, { analysis: "pending" });
+    try {
+      const fd = new FormData();
+      fd.append("file", it.file);
+      fd.append("name", it.file.name);
+      fd.append("mime", it.file.type || "application/octet-stream");
+      const res = await fetch("/api/analyze", { method: "POST", body: fd });
+      if (!res.ok) throw new Error();
+      const a = await res.json();
+      update(it.key, (cur) => {
+        // Only overwrite what the user hasn't touched yet
+        const untouchedName = cur.name === stripExt(cur.originalName).replace(/[_]+/g, " ").trim();
+        return {
+          analysis: "done",
+          analysisId: a.analysisId,
+          guessedType: a.docType && a.docType !== "other" ? a.docType : cur.guessedType,
+          docType: cur.docType === "auto" || cur.docType === cur.guessedType ? (a.docType && a.docType !== "other" ? a.docType : "auto") : cur.docType,
+          memberId: cur.memberId ?? (a.memberConfidence >= 0.5 ? a.memberId : null),
+          name: untouchedName && a.suggestedName && a.confidence >= 0.5 ? stripExt(a.suggestedName) : cur.name,
+          read: { engine: a.ocr.engine, confidence: a.ocr.confidence, preview: a.ocr.preview, summary: a.summary, ai: a.ai, memberConfidence: a.memberConfidence, tags: a.tags },
+        };
+      });
+    } catch {
+      update(it.key, { analysis: "failed" });
+    }
+  }, [update]);
+
   const addFiles = useCallback((files: FileList | File[]) => {
     const list = Array.from(files).slice(0, 20);
     const fresh: QueueItem[] = [];
@@ -168,7 +202,9 @@ export default function UploadFlow() {
       });
     }
     setItems((prev) => [...fresh, ...prev]);
-  }, [quickGuess, t]);
+    for (const it of fresh) analyze(it);
+  }, [quickGuess, t, analyze]);
+
 
   const buildMeta = (it: QueueItem): Record<string, string> => {
     const ext = extOf(it.originalName);
@@ -177,6 +213,7 @@ export default function UploadFlow() {
       memberId: it.memberId ?? "",
       folderId: it.folderId ?? "",
       docType: it.docType === "auto" ? "" : it.docType,
+      analysisId: it.analysisId ?? "",
     };
   };
 
@@ -413,6 +450,29 @@ function ReviewCard({ item, members, memberFolders, typeOptions, onChange, onSav
     <div className="flex flex-col gap-4 sm:flex-row">
       <Thumb item={item} />
       <div className="min-w-0 flex-1 space-y-4">
+        {/* What the vault read */}
+        {item.analysis === "pending" && (
+          <p className="flex items-center gap-2 rounded-2xl bg-saffron-tint px-4 py-3 text-lg font-bold text-saffron-deep">
+            <Loader2 className="h-6 w-6 animate-spin" aria-hidden /> {t("ai_reading")}
+          </p>
+        )}
+        {item.analysis === "done" && item.read && (
+          <div className="rounded-2xl bg-leaf-tint/70 px-4 py-3">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-lg font-bold text-leaf-deep">
+              <Sparkles className="h-6 w-6" aria-hidden />
+              {item.read.engine === "none" || !item.read.preview ? t("ai_read_nothing") : t("ai_read_done", { pct: Math.round(item.read.confidence) })}
+              {item.read.ai && <span className="rounded-full bg-paper px-2 py-0.5 text-sm">AI · {item.read.ai}</span>}
+            </p>
+            {item.read.summary && <p className="mt-1 text-base text-ink">{item.read.summary}</p>}
+            {item.read.tags && <SmartTags tags={item.read.tags} compact />}
+            {item.read.preview && (
+              <details className="mt-1 text-sm text-ink-soft">
+                <summary className="cursor-pointer font-semibold">{t("ai_show_text")}</summary>
+                <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-sans">{item.read.preview}</pre>
+              </details>
+            )}
+          </div>
+        )}
         {/* Name */}
         <div>
           <label className="mb-1 flex items-center gap-2 text-base font-bold text-ink-soft" htmlFor={`name-${item.key}`}>

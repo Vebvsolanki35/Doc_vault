@@ -28,6 +28,7 @@ const ACTION_META: Record<string, { icon: typeof Upload; label: DictKey; color: 
   rename: { icon: MoveRight, label: "act_rename", color: "bg-straw text-ink-soft" },
   retype: { icon: MoveRight, label: "act_rename", color: "bg-straw text-ink-soft" },
   member_rename: { icon: MoveRight, label: "act_member", color: "bg-straw text-ink-soft" },
+  reanalyze: { icon: Upload, label: "act_reanalyze", color: "bg-[#e0ecfa] text-[#1d4e77]" },
   member_delete: { icon: Recycle, label: "act_member", color: "bg-danger-tint text-danger" },
 };
 

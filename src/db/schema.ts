@@ -67,6 +67,7 @@ export type DocumentTags = {
   percentage?: string; // Marksheet: 78.4%
   year?: string; // Marksheet/Education: exam year
   confidence?: number;
+  summary?: string; // AI one-line description
 };
 
 export const documents = pgTable(

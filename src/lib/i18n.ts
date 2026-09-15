@@ -345,6 +345,17 @@ const en = {
   act_member: "Family change",
   act_folder: "Folder change",
   no_documents_type: "No {type} saved yet",
+  ai_reading: "Reading the document…",
+  ai_read_done: "Read it ({pct}% clear) — details filled in below. Check and save.",
+  ai_read_nothing: "Couldn't read any text — please fill the details yourself.",
+  ai_show_text: "Show what was read",
+  set_ai: "Smart reading (OCR + AI)",
+  set_ai_sub: "Every photo and PDF is read on this device so it can be sorted by its contents. Add an AI key to make it even smarter.",
+  set_ai_on: "AI model connected: {model}",
+  set_ai_off: "On-device reading only (no AI key set). See README → AI setup.",
+  ai_reread: "Read again & sort",
+  ai_reread_done: "Read it again — details updated",
+  act_reanalyze: "Re-read by AI",
 };
 
 export type DictKey = keyof typeof en;
@@ -675,6 +686,17 @@ const hi: Record<DictKey, string> = {
   act_member: "परिवार में बदलाव",
   act_folder: "फ़ोल्डर में बदलाव",
   no_documents_type: "अभी कोई {type} नहीं रखा",
+  ai_reading: "कागज़ पढ़ा जा रहा है…",
+  ai_read_done: "पढ़ लिया ({pct}% साफ़) — नीचे विवरण भर दिया है। जाँचकर सहेजें।",
+  ai_read_nothing: "कोई लिखावट नहीं पढ़ पाया — कृपया विवरण खुद भरें।",
+  ai_show_text: "क्या पढ़ा, देखें",
+  set_ai: "स्मार्ट पढ़ाई (OCR + AI)",
+  set_ai_sub: "हर फोटो और PDF इसी डिवाइस पर पढ़ी जाती है ताकि उसकी लिखावट से सही जगह रखी जा सके। AI key जोड़ें तो और समझदार।",
+  set_ai_on: "AI मॉडल जुड़ा है: {model}",
+  set_ai_off: "सिर्फ़ डिवाइस पर पढ़ाई (AI key नहीं)। README → AI setup देखें।",
+  ai_reread: "फिर से पढ़ें व सजाएँ",
+  ai_reread_done: "फिर से पढ़ लिया — विवरण बदल गए",
+  act_reanalyze: "AI ने फिर पढ़ा",
 };
 
 const dicts: Record<Lang, Record<DictKey, string>> = { en, hi };

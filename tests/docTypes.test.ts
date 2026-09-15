@@ -56,3 +56,30 @@ describe("search intent understands document types", () => {
     expect(b.folder).toBe("land");
   });
 });
+
+describe("OCR-driven tag extraction", () => {
+  it("reads a spaced Aadhaar number and the labelled name", async () => {
+    const { extractMetadata } = await import("../src/lib/classifier");
+    const tags = extractMetadata("GOVERNMENT OF INDIA Name: Sita Devi DOB: 04/08/1968 Female 4523 7812 9034 Aadhaar - Aam Aadmi ka Adhikar", "id");
+    expect(tags.cardType).toBe("Aadhaar");
+    expect(tags.cardNo).toBe("XXXX-XXXX-9034");
+    expect(tags.person).toBe("Sita Devi");
+  });
+  it("does not mistake slogans for people", async () => {
+    const { extractMetadata } = await import("../src/lib/classifier");
+    const tags = extractMetadata("Aadhaar Aam Aadmi ka Adhikar 4523 7812 9034", "id");
+    expect(tags.person).toBeUndefined();
+  });
+});
+
+describe("OCR engine", () => {
+  it("reads text from a rendered image (eng+hin packs bundled)", async () => {
+    const sharp = (await import("sharp")).default;
+    const { ocrImage } = await import("../src/lib/ocr");
+    const svg = `<svg width="800" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/><text x="20" y="120" font-size="60" font-family="DejaVu Sans">PAN ABCPK1234F</text></svg>`;
+    const png = await sharp(Buffer.from(svg)).png().toBuffer();
+    const r = await ocrImage(png);
+    expect(r.engine).toBe("tesseract");
+    expect(r.text.replace(/\s/g, "")).toContain("ABCPK1234F");
+  }, 60000);
+});

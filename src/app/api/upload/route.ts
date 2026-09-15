@@ -3,8 +3,9 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, folders, NewDocument } from "@/db/schema";
 import { audit, findFolder, getRoster, isUnlocked, publicDoc, sha256 } from "@/lib/vault";
-import { classify, detectMember, extractPdfText } from "@/lib/classifier";
-import { detectDocType, DOC_TYPE_MAP } from "@/lib/docTypes";
+import { detectMember } from "@/lib/classifier";
+import { DOC_TYPE_MAP } from "@/lib/docTypes";
+import { analyzeDocument, takeAnalysis, type Analysis } from "@/lib/analyze";
 import { sanitizeName } from "@/lib/naming";
 
 export const runtime = "nodejs";
@@ -36,30 +37,21 @@ async function storeDocument(
   buffer: Buffer,
   name: string,
   mime: string,
-  opts: { merge?: boolean; memberId?: string | null; folderId?: string | null; docType?: string | null; originalName?: string | null },
+  opts: { merge?: boolean; memberId?: string | null; folderId?: string | null; docType?: string | null; originalName?: string | null; analysis?: Analysis | null },
 ) {
-  let ocrText = "";
-  if (mime === "application/pdf") ocrText = await extractPdfText(buffer);
-
-  // Classify on the user's name + the original file name + the text layer
-  const source = `${name}\n${opts.originalName ?? ""}\n${ocrText}`;
-  const classified = classify(source);
-  let folderKey = classified.folder;
-  const { tags, confidence } = classified;
-
-  // ── Document type (Aadhaar / PAN / Khasra …) ──
-  const typeGuess = detectDocType(source);
-  let docType = opts.docType && DOC_TYPE_MAP[opts.docType] ? opts.docType : typeGuess?.type ?? "other";
-  if (docType === "other" && tags.cardType) {
-    const byCard: Record<string, string> = { Aadhaar: "aadhaar", PAN: "pan", "Voter ID": "voter" };
-    docType = byCard[tags.cardType] ?? "other";
-  }
-  // The type is a stronger signal than loose folder keywords
-  if (docType !== "other" && folderKey === "other") folderKey = DOC_TYPE_MAP[docType].folder;
-  if (opts.docType && DOC_TYPE_MAP[opts.docType]) folderKey = DOC_TYPE_MAP[opts.docType].folder;
-
   const checksum = sha256(buffer);
   const roster = await getRoster();
+
+  // ── Read the document (text layer or on-device OCR) + decide ──
+  const analysis = opts.analysis ?? (await analyzeDocument(buffer, mime, opts.originalName || name, roster));
+  const ocrText = analysis.ocrText;
+  let folderKey = analysis.folder;
+  const tags = analysis.tags;
+  const confidence = analysis.confidence;
+  let docType: string = opts.docType && DOC_TYPE_MAP[opts.docType] ? opts.docType : analysis.docType;
+  if (opts.docType && DOC_TYPE_MAP[opts.docType]) folderKey = DOC_TYPE_MAP[opts.docType].folder;
+  else if (docType !== "other") folderKey = DOC_TYPE_MAP[docType].folder;
+  const source = `${name}\n${opts.originalName ?? ""}\n${ocrText}`;
 
   // ── Duplicate detection (identical bytes) ──
   const dup = await db
@@ -75,6 +67,10 @@ async function storeDocument(
   let member = null;
   if (opts.memberId) member = roster.find((m) => m.id === opts.memberId) ?? null;
   let memberCertain = !!member;
+  if (!member && analysis.memberKey) {
+    member = roster.find((m) => m.key === analysis.memberKey) ?? null;
+    memberCertain = !!member && analysis.memberConfidence >= 0.6;
+  }
   if (!member) {
     const guess = detectMember(source, roster);
     if (guess) { member = guess.member; memberCertain = true; }
@@ -120,7 +116,7 @@ async function storeDocument(
       fileData: buffer,
       checksum,
       ocrText: ocrText.slice(0, 20000),
-      tags,
+      tags: { ...tags, ...(analysis.summary ? { summary: analysis.summary } : {}) },
       ...prev,
     })
     .returning();
@@ -129,7 +125,7 @@ async function storeDocument(
   return {
     duplicate: false as const,
     document: publicDoc(inserted[0]),
-    detected: { folder: folderKey, docType, confidence, memberCertain, memberKey: member?.key ?? null },
+    detected: { folder: folderKey, docType, confidence, memberCertain, memberKey: member?.key ?? null, ocr: analysis.engine, ai: analysis.ai },
   };
 }
 
@@ -147,7 +143,9 @@ export async function POST(req: NextRequest) {
   const memberId = form.get("memberId")?.toString() || null;
   const folderId = form.get("folderId")?.toString() || null;
   const docType = form.get("docType")?.toString() || null;
-  const storeOpts = { merge, memberId, folderId, docType, originalName };
+  const analysisId = form.get("analysisId")?.toString() || null;
+  const analysis = analysisId ? takeAnalysis(analysisId) : null;
+  const storeOpts = { merge, memberId, folderId, docType, originalName, analysis };
 
   if (!(file instanceof Blob)) return NextResponse.json({ error: "file required" }, { status: 400 });
 
