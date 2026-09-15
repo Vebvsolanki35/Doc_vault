@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft, BadgeIndianRupee, FileText, FolderOpen, Globe, GraduationCap, Heart, IdCard, Landmark, Lock,
-  ShieldCheck, Tractor, User, Vault, Volume2, Square, X,
+  ArrowLeft, Baby, BadgeIndianRupee, Briefcase, FileText, FolderOpen, Globe, GraduationCap, Heart, IdCard, Landmark, Lock,
+  ShieldCheck, Smile, Tractor, User, Users, Vault, Volume2, Square, X,
 } from "lucide-react";
 import { useLanguage } from "./providers";
 import { FOLDER_KEYS, type FolderKey } from "@/lib/classifier";
@@ -40,22 +40,38 @@ export function FolderIcon({ folder, className = "h-7 w-7" }: { folder: string; 
 }
 
 // ── Member avatars ────────────────────────────────────────────────────
-export const MEMBER_THEMES: Record<string, { icon: typeof User; bg: string; fg: string; ring: string }> = {
-  papa: { icon: Tractor, bg: "bg-leaf", fg: "text-white", ring: "ring-leaf" },
-  mummy: { icon: Heart, bg: "bg-saffron", fg: "text-white", ring: "ring-saffron" },
-  me: { icon: User, bg: "bg-[#3d3673]", fg: "text-white", ring: "ring-[#3d3673]" },
+/** Colour palette a member can pick from (stored in members.color). */
+export const MEMBER_COLORS: Record<string, { bg: string; fg: string; ring: string; swatch: string }> = {
+  leaf: { bg: "bg-leaf", fg: "text-white", ring: "ring-leaf", swatch: "#2f6b3f" },
+  saffron: { bg: "bg-saffron", fg: "text-white", ring: "ring-saffron", swatch: "#d96a00" },
+  indigo: { bg: "bg-[#3d3673]", fg: "text-white", ring: "ring-[#3d3673]", swatch: "#3d3673" },
+  rose: { bg: "bg-[#b23a5a]", fg: "text-white", ring: "ring-[#b23a5a]", swatch: "#b23a5a" },
+  sky: { bg: "bg-[#1d6fa5]", fg: "text-white", ring: "ring-[#1d6fa5]", swatch: "#1d6fa5" },
+  plum: { bg: "bg-[#6b2d7a]", fg: "text-white", ring: "ring-[#6b2d7a]", swatch: "#6b2d7a" },
+  teal: { bg: "bg-[#0f766e]", fg: "text-white", ring: "ring-[#0f766e]", swatch: "#0f766e" },
+  brown: { bg: "bg-[#7a4b1e]", fg: "text-white", ring: "ring-[#7a4b1e]", swatch: "#7a4b1e" },
 };
-
+export const MEMBER_ICONS: Record<string, typeof User> = {
+  tractor: Tractor, heart: Heart, user: User, users: Users, baby: Baby, "graduation-cap": GraduationCap, briefcase: Briefcase, smile: Smile,
+};
 export type MemberLite = { id: string; key: string; nameEn: string; nameHi: string; icon: string; color: string };
 
-export function MemberAvatar({ member, size = "md" }: { member: MemberLite | { key: string }; size?: "sm" | "md" | "lg" }) {
-  const theme = MEMBER_THEMES[member.key] ?? MEMBER_THEMES.me;
-  const Icon = theme.icon;
+function initials(m: { nameEn?: string; nameHi?: string }, lang: "en" | "hi") {
+  const n = (lang === "hi" ? m.nameHi : m.nameEn) || m.nameEn || m.nameHi || "?";
+  return n.trim().charAt(0).toUpperCase();
+}
+
+export function MemberAvatar({ member, size = "md" }: { member: MemberLite | { key: string; color?: string; icon?: string; nameEn?: string; nameHi?: string }; size?: "sm" | "md" | "lg" }) {
+  const { lang } = useLanguage();
+  const theme = MEMBER_COLORS[member.color ?? ""] ?? MEMBER_COLORS.indigo;
+  // Custom members default to icon "user" → show their initial instead so people are told apart
+  const Icon = member.icon && member.icon !== "user" ? MEMBER_ICONS[member.icon] : member.key === "me" ? User : undefined;
   const dims = size === "lg" ? "h-20 w-20" : size === "sm" ? "h-10 w-10" : "h-14 w-14";
   const iconDims = size === "lg" ? "h-11 w-11" : size === "sm" ? "h-5 w-5" : "h-7 w-7";
+  const textDims = size === "lg" ? "text-4xl" : size === "sm" ? "text-lg" : "text-2xl";
   return (
-    <span className={`flex shrink-0 items-center justify-center rounded-full ${dims} ${theme.bg} ${theme.fg} shadow-soft`} aria-hidden>
-      <Icon className={iconDims} />
+    <span className={`flex shrink-0 items-center justify-center rounded-full font-display font-bold ${dims} ${theme.bg} ${theme.fg} shadow-soft`} aria-hidden>
+      {Icon ? <Icon className={iconDims} /> : <span className={textDims}>{initials(member, lang)}</span>}
     </span>
   );
 }

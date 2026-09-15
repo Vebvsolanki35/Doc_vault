@@ -108,7 +108,9 @@ export function detectMember(rawText: string, roster: Member[]): MemberGuess {
         if (hay.includes(` ${part} `) || hay.includes(part)) hits++;
         else if (hayLatin.includes(devToLatin(part).replace(/a$/, ""))) hits++;
       }
-      if (parts.length > 0 && hits === parts.length) score += parts.length * 2 + (a.length > 5 ? 1 : 0);
+      // A complete name/alias match is always decisive ("Mummy", "Ram Kumar");
+      // partial matches only add weak evidence.
+      if (parts.length > 0 && hits === parts.length) score += Math.max(3, parts.length * 2 + (a.length > 5 ? 1 : 0));
       else if (hits > 0) score += hits;
     }
     if (score > bestScore) {
@@ -149,10 +151,10 @@ export function extractMetadata(text: string, folder: FolderKey): DocumentTags {
 
   // ── ID CARDS: type / number / expiry ──
   if (folder === "id" || folder === "other") {
-    const aadhaar = t.replace(/\s/g, "").match(/\b[2-9]\d{11}\b/);
+    const aadhaar = t.match(/(?<!\d)([2-9]\d{3})[\s-]?(\d{4})[\s-]?(\d{4})(?!\d)/);
     if (aadhaar) {
       tags.cardType = "Aadhaar";
-      tags.cardNo = `XXXX-XXXX-${aadhaar[0].slice(-4)}`;
+      tags.cardNo = `XXXX-XXXX-${aadhaar[3]}`;
     }
     const pan = t.match(/\b([A-Z]{5}\d{4}[A-Z])\b/);
     if (pan) {
@@ -176,15 +178,22 @@ export function extractMetadata(text: string, folder: FolderKey): DocumentTags {
     if (year) tags.year = year[1];
   }
 
-  // ── PERSON heuristic near identity keywords ──
-  if (folder === "id" || folder === "land" || folder === "marksheet") {
+  // ── PERSON: explicit "Name:" label wins (OCR of cards / marksheets) ──
+  const labelled = t.match(/(?:^|\s)(?:name|नाम)\s*[:：\-]\s*([A-Z][A-Za-z.]+(?:\s+[A-Z][A-Za-z.]+){0,3}|[\u0900-\u097F]+(?:\s+[\u0900-\u097F]+){0,3})/i);
+  const STOP_AFTER = /\s+(?:DOB|D\.O\.B|Date|Fathers?|Father's|Mother|Husband|S\/O|D\/O|W\/O|Physics|Roll|Class|Address|Gender|Male|Female|Year|पिता|पति|जन्म|पता|कक्षा)\b.*$/i;
+  if (labelled && !/^(of|card|no|the)$/i.test(labelled[1])) tags.person = labelled[1].replace(STOP_AFTER, "").trim();
+  if (tags.owner) tags.owner = tags.owner.replace(STOP_AFTER, "").trim();
+  const SLOGAN = /^(aam aadmi|mera aadhaar|meri pehchan|government of|income tax|permanent account|unique identification)/i;
+  if (tags.person && SLOGAN.test(tags.person)) delete tags.person;
+  // ── PERSON heuristic near identity keywords (fallback) ──
+  if (!tags.person && (folder === "id" || folder === "land" || folder === "marksheet")) {
     const kwMatch = t
       .toLowerCase()
       .match(/(?:aadhaar|aadhar|आधार|pan|पैन|passport|पासपोर्ट|voter|मतदाता|marksheet|मार्कशीट)[\s_\-–:]*(?:of|का|के)?[\s_\-–:]*/);
     if (kwMatch) {
       const rest = t.slice((kwMatch.index ?? 0) + kwMatch[0].length);
       const nameRun = rest.match(/([A-Z][a-z]+(?:[\s_]+[A-Z][a-z]+){0,2})/);
-      if (nameRun && !/^(card|no|the|of|jpg|jpeg|png|pdf)$/i.test(nameRun[1])) {
+      if (nameRun && !/^(card|no|the|of|jpg|jpeg|png|pdf)$/i.test(nameRun[1]) && !SLOGAN.test(nameRun[1])) {
         tags.person = nameRun[1].replace(/_/g, " ").trim();
       }
     }

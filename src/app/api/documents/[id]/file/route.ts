@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { isUnlocked, sha256 } from "@/lib/vault";
-import { convertImage, isImage, Quality } from "@/lib/convert";
+import { convertImage, convertPdf, isImage, Quality } from "@/lib/convert";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -75,14 +75,18 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   let outName = doc.name;
 
   if (mode !== "raw") {
-    if (!isImage(doc.mimeType)) {
-      return NextResponse.json({ error: "conversion only for images" }, { status: 400 });
-    }
     try {
-      const conv = await convertImage(data, mode as "jpg" | "png" | "pdf", quality);
-      outData = conv.data;
-      outMime = conv.mime;
-      outName = `${baseName}.${conv.ext}`;
+      if (isImage(doc.mimeType)) {
+        const conv = await convertImage(data, mode as "jpg" | "png" | "pdf", quality);
+        outData = conv.data; outMime = conv.mime; outName = `${baseName}.${conv.ext}`;
+      } else if (doc.mimeType === "application/pdf" && (mode === "jpg" || mode === "png")) {
+        const conv = await convertPdf(data, mode, quality, baseName);
+        outData = conv.data; outMime = conv.mime; outName = `${baseName}.${conv.ext}`;
+      } else if (doc.mimeType === "application/pdf" && mode === "pdf") {
+        outName = `${baseName}.pdf`;
+      } else {
+        return NextResponse.json({ error: "conversion not supported for this file" }, { status: 400 });
+      }
     } catch {
       return NextResponse.json({ error: "conversion failed" }, { status: 500 });
     }

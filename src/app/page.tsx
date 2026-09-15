@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, ChevronRight, DatabaseBackup, FolderOpen, HelpCircle, History, Mic, Recycle, ScanLine, Settings, Sun,
+  ArrowRight, ChevronRight, DatabaseBackup, FolderOpen, HelpCircle, History, Mic, Recycle, ScanLine, Settings, Sun, UserPlus, Users,
 } from "lucide-react";
 import { useLanguage } from "@/components/providers";
 import { MemberAvatar, PageIn, StorageGauge, memberDisplayName, type MemberLite } from "@/components/widgets";
@@ -85,7 +85,11 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ── THE FAMILY — three member tiles ── */}
-      <motion.div variants={container} initial="hidden" animate="show" className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-display text-2xl font-bold"><Users className="h-7 w-7 text-saffron-deep" aria-hidden /> {t("family")}</h2>
+        <Link href="/people" className="chip min-h-[48px] cursor-pointer text-base hover:!bg-straw"><UserPlus className="h-5 w-5" aria-hidden /> {t("people_manage")}</Link>
+      </div>
+      <motion.div variants={container} initial="hidden" animate="show" className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((m) => (
           <motion.div key={m.id} variants={rise}>
             <Link
@@ -134,7 +138,7 @@ export default function Dashboard() {
             <div className="flex-1">
               <p className="mb-3 text-xl font-bold text-ink-soft">{t("storage_per_member")}</p>
               <div className="grid gap-3 sm:grid-cols-3">
-                {members.map((m) => {
+                {members.slice(0, 6).map((m) => {
                   const pm = stats.perMember[m.id];
                   const totalBytes = Math.max(1, stats.used);
                   const pct = Math.round(((pm?.bytes ?? 0) / totalBytes) * 100);

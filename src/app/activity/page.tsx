@@ -23,7 +23,13 @@ const ACTION_META: Record<string, { icon: typeof Upload; label: DictKey; color: 
   backup: { icon: CloudDownload, label: "act_backup", color: "bg-leaf-tint text-leaf-deep" },
   heal: { icon: HeartPulse, label: "act_heal", color: "bg-saffron-tint text-saffron-deep" },
   purge: { icon: Recycle, label: "act_delete", color: "bg-danger-tint text-danger" },
-  folder_delete: { icon: Recycle, label: "act_delete", color: "bg-danger-tint text-danger" },
+  folder_delete: { icon: Recycle, label: "act_folder", color: "bg-danger-tint text-danger" },
+  folder_rename: { icon: MoveRight, label: "act_folder", color: "bg-straw text-ink-soft" },
+  rename: { icon: MoveRight, label: "act_rename", color: "bg-straw text-ink-soft" },
+  retype: { icon: MoveRight, label: "act_rename", color: "bg-straw text-ink-soft" },
+  member_rename: { icon: MoveRight, label: "act_member", color: "bg-straw text-ink-soft" },
+  reanalyze: { icon: Upload, label: "act_reanalyze", color: "bg-[#e0ecfa] text-[#1d4e77]" },
+  member_delete: { icon: Recycle, label: "act_member", color: "bg-danger-tint text-danger" },
 };
 
 export default function ActivityPage() {

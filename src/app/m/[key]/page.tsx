@@ -6,7 +6,7 @@
  */
 import { use, useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FolderOpen, FolderPlus, Loader2, Trash2 } from "lucide-react";
+import { Check, FolderOpen, FolderPlus, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { useLanguage, toast } from "@/components/providers";
 import {
   BackBar, FolderIcon, FOLDER_LABEL_KEY, MemberAvatar, PageIn, memberDisplayName, type MemberLite,
@@ -24,6 +24,8 @@ export default function MemberSpace({ params }: { params: Promise<{ key: string 
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDelFolder, setConfirmDelFolder] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const [notFound, setNotFound] = useState(false);
 
   const refresh = useCallback(async (mId?: string) => {
@@ -60,8 +62,19 @@ export default function MemberSpace({ params }: { params: Promise<{ key: string 
     if (res.ok) {
       if (activeFolder === folderId) setActiveFolder(null);
       setConfirmDelFolder(null);
+      toast(t("folder_deleted"));
       refresh();
-    }
+    } else toast(t("error_generic"), "warn");
+  };
+
+  const renameFolder = async (folderId: string) => {
+    const name = renameDraft.trim();
+    if (!name) { setRenaming(null); return; }
+    const res = await fetch(`/api/folders/${folderId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }),
+    });
+    if (res.ok) { toast(t("folder_renamed")); setRenaming(null); refresh(); }
+    else toast(t("error_generic"), "warn");
   };
 
   const num = (n: number) => (lang === "hi" ? toDevanagariDigits(n) : String(n));
@@ -99,8 +112,22 @@ export default function MemberSpace({ params }: { params: Promise<{ key: string 
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {folders.map((f, i) => {
           const active = activeFolder === f.id;
+          const deletable = !(f.isDefault && f.key === "other");
+          if (renaming === f.id) {
+            return (
+              <motion.div key={f.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card flex min-h-[120px] flex-col gap-2 rounded-3xl !border-saffron p-3">
+                <input value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} autoFocus aria-label={t("folder_rename")}
+                  onKeyDown={(e) => { if (e.key === "Enter") renameFolder(f.id); if (e.key === "Escape") setRenaming(null); }}
+                  className="min-h-[48px] w-full rounded-xl border-2 border-warm-border bg-cream px-3 text-base font-semibold" />
+                <div className="flex gap-2">
+                  <button onClick={() => renameFolder(f.id)} className="btn-primary flex-1 !min-h-[48px] !px-3 !text-base"><Check className="h-5 w-5" aria-hidden /> {t("set_save")}</button>
+                  <button onClick={() => setRenaming(null)} className="btn-icon !min-h-[48px]" aria-label={t("docs_cancel")}><X className="h-5 w-5" aria-hidden /></button>
+                </div>
+              </motion.div>
+            );
+          }
           return (
-            <motion.div key={f.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="relative">
+            <motion.div key={f.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="group relative">
               <button
                 onClick={() => setActiveFolder(active ? null : f.id)}
                 aria-pressed={active}
@@ -112,22 +139,30 @@ export default function MemberSpace({ params }: { params: Promise<{ key: string 
                 <span className="text-lg font-bold leading-tight">{folderDisplayName(f, lang, t as never)}</span>
                 <span className={`rounded-full px-2.5 py-0.5 text-sm font-bold ${active ? "bg-white/25" : "bg-straw"}`}>{num(f.docCount ?? 0)}</span>
               </button>
-              {!f.isDefault && (
+              {/* Rename (any folder) */}
+              <button
+                onClick={() => { setRenaming(f.id); setRenameDraft(folderDisplayName(f, lang, t as never)); setConfirmDelFolder(null); }}
+                className="absolute -left-2 -top-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-warm-border bg-paper text-saffron-deep shadow-soft"
+                aria-label={t("folder_rename")} title={t("folder_rename")}
+              >
+                <Pencil className="h-5 w-5" aria-hidden />
+              </button>
+              {/* Delete (everything except "Other") */}
+              {deletable && (
                 confirmDelFolder === f.id ? (
-                  <button
-                    onClick={() => deleteFolder(f.id)}
-                    className="absolute -right-2 -top-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-danger text-white shadow-lift"
-                    aria-label={t("yes")}
-                    title={t("yes")}
-                  >
-                    <Trash2 className="h-5 w-5" aria-hidden />
-                  </button>
+                  <div className="absolute -right-2 -top-2 flex gap-1">
+                    <button onClick={() => deleteFolder(f.id)} className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-danger text-white shadow-lift" aria-label={t("yes")} title={t("folder_delete_ask")}>
+                      <Trash2 className="h-5 w-5" aria-hidden />
+                    </button>
+                    <button onClick={() => setConfirmDelFolder(null)} className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-warm-border bg-paper shadow-soft" aria-label={t("no")}>
+                      <X className="h-5 w-5" aria-hidden />
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={() => setConfirmDelFolder(f.id)}
                     className="absolute -right-2 -top-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-warm-border bg-paper text-danger shadow-soft"
-                    aria-label={t("docs_delete")}
-                    title={t("docs_delete")}
+                    aria-label={t("docs_delete")} title={t("folder_delete_ask")}
                   >
                     <Trash2 className="h-5 w-5" aria-hidden />
                   </button>
@@ -169,6 +204,8 @@ export default function MemberSpace({ params }: { params: Promise<{ key: string 
           )}
         </motion.div>
       </div>
+
+      {confirmDelFolder && <p className="mb-4 text-base font-semibold text-ink-soft">{t("folder_delete_ask")} {t("folder_default_note")}</p>}
 
       {/* Documents of this member (optionally narrowed to a folder) */}
       {activeFolder && (

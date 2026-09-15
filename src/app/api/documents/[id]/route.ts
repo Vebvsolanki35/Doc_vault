@@ -3,6 +3,8 @@ import { eq, isNotNull, and } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, folders } from "@/db/schema";
 import { audit, isUnlocked } from "@/lib/vault";
+import { sanitizeName } from "@/lib/naming";
+import { DOC_TYPE_MAP } from "@/lib/docTypes";
 
 export const runtime = "nodejs";
 
@@ -27,7 +29,7 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
   const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { folderId?: string; category?: string; action?: string };
+  const body = (await req.json().catch(() => ({}))) as { folderId?: string; category?: string; action?: string; name?: string; docType?: string };
 
   const rows = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
   const doc = rows[0];
@@ -43,6 +45,24 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     await audit("purge", doc.name, { manual: true });
     return NextResponse.json({ ok: true });
   }
+  // ── Rename / re-type (can be combined with a move) ──
+  const patch: Partial<typeof documents.$inferInsert> = {};
+  if (typeof body.name === "string") {
+    const name = sanitizeName(body.name, doc.name, doc.mimeType);
+    if (!name || name === "." ) return NextResponse.json({ error: "bad name" }, { status: 400 });
+    if (name !== doc.name) patch.name = name;
+  }
+  if (typeof body.docType === "string") {
+    if (body.docType !== "other" && !DOC_TYPE_MAP[body.docType]) return NextResponse.json({ error: "bad type" }, { status: 400 });
+    patch.docType = body.docType;
+  }
+  if (Object.keys(patch).length > 0) {
+    await db.update(documents).set({ ...patch, updatedAt: new Date() }).where(eq(documents.id, id));
+    if (patch.name) await audit("rename", doc.name, { to: patch.name });
+    if (patch.docType) await audit("retype", patch.name ?? doc.name, { type: patch.docType });
+    if (!body.folderId && !body.category) return NextResponse.json({ ok: true });
+  }
+
   if (body.folderId) {
     const f = await db.select().from(folders).where(eq(folders.id, body.folderId)).limit(1);
     if (!f[0]) return NextResponse.json({ error: "folder not found" }, { status: 404 });

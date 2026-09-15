@@ -7,7 +7,7 @@
 const DB_NAME = "smart-tijori";
 const STORE = "outbox";
 
-export type OutboxItem = { id: string; name: string; type: string; blob: Blob; addedAt: number };
+export type OutboxItem = { id: string; name: string; type: string; blob: Blob; addedAt: number; meta?: Record<string, string> };
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

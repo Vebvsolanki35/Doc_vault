@@ -35,18 +35,20 @@ export async function GET() {
 /** POST /api/members → add a custom family member. */
 export async function POST(req: Request) {
   if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { nameEn?: string; nameHi?: string; aliases?: string[] };
-  if (!body.nameEn || !body.nameHi) return NextResponse.json({ error: "names required" }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as { nameEn?: string; nameHi?: string; aliases?: string[]; color?: string; icon?: string };
+  const nameEn = (body.nameEn ?? body.nameHi ?? "").trim().slice(0, 60);
+  const nameHi = (body.nameHi ?? body.nameEn ?? "").trim().slice(0, 60);
+  if (!nameEn) return NextResponse.json({ error: "names required" }, { status: 400 });
   const maxSort = await db.select({ max: sql<number>`coalesce(max(${members.sort}), 0)` }).from(members);
   const key = `m-${Date.now().toString(36)}`;
   const [row] = await db
     .insert(members)
     .values({
       key,
-      nameEn: body.nameEn,
-      nameHi: body.nameHi,
-      icon: "user",
-      color: "indigo",
+      nameEn,
+      nameHi,
+      icon: body.icon ?? "user",
+      color: body.color ?? "indigo",
       aliases: body.aliases ?? [],
       sort: (maxSort[0]?.max ?? 0) + 1,
     })

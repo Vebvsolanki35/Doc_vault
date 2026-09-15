@@ -67,6 +67,7 @@ export type DocumentTags = {
   percentage?: string; // Marksheet: 78.4%
   year?: string; // Marksheet/Education: exam year
   confidence?: number;
+  summary?: string; // AI one-line description
 };
 
 export const documents = pgTable(
@@ -77,6 +78,7 @@ export const documents = pgTable(
     mimeType: text("mime_type").notNull(),
     size: integer("size").notNull(),
     category: text("category").notNull().default("other"), // folder key cache: education|id|marksheet|land|other|custom
+    docType: text("doc_type").notNull().default("other"), // aadhaar | pan | voter | khasra | marksheet … (see lib/docTypes)
     memberId: uuid("member_id").references(() => members.id),
     folderId: uuid("folder_id").references(() => folders.id),
     fileData: bytea("file_data").notNull(),
@@ -95,6 +97,7 @@ export const documents = pgTable(
   },
   (t) => [
     index("documents_category_idx").on(t.category),
+    index("documents_doctype_idx").on(t.docType),
     index("documents_member_idx").on(t.memberId),
     index("documents_folder_idx").on(t.folderId),
     index("documents_deleted_idx").on(t.deletedAt),

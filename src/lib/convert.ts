@@ -85,3 +85,51 @@ export async function mergeImagesToPdf(
   }
   return Buffer.from(await pdf.save());
 }
+
+// ── PDF → image (renders pages with pdf.js + a native canvas) ─────────
+const RENDER_SCALE: Record<Quality, number> = { low: 0.6, medium: 1.5, high: 3 };
+
+export async function pdfPageCount(pdf: Buffer): Promise<number> {
+  const { getDocumentProxy } = await import("unpdf");
+  const doc = await getDocumentProxy(new Uint8Array(pdf));
+  return doc.numPages;
+}
+
+/** Render one page of a PDF to PNG bytes at a quality preset. */
+export async function renderPdfPage(pdf: Buffer, page: number, quality: Quality): Promise<Buffer> {
+  const { renderPageAsImage } = await import("unpdf");
+  const png = await renderPageAsImage(new Uint8Array(pdf), page, {
+    canvasImport: () => import("@napi-rs/canvas"),
+    scale: RENDER_SCALE[quality],
+  });
+  return Buffer.from(png);
+}
+
+/**
+ * Convert a PDF to JPG/PNG. One page → a single image; many pages → a ZIP
+ * with one image per page (page-01.jpg …). Pages are capped to keep the
+ * server responsive.
+ */
+export async function convertPdf(
+  pdf: Buffer,
+  format: "jpg" | "png",
+  quality: Quality,
+  baseName: string,
+  maxPages = 30,
+): Promise<{ data: Buffer; mime: string; ext: string; pages: number }> {
+  const total = Math.min(await pdfPageCount(pdf), maxPages);
+  const pages: Buffer[] = [];
+  for (let i = 1; i <= total; i++) {
+    const png = await renderPdfPage(pdf, i, quality);
+    const out = format === "jpg"
+      ? await sharp(png).flatten({ background: "#ffffff" }).jpeg({ quality: JPEG_Q[quality] }).toBuffer()
+      : await sharp(png).png().toBuffer();
+    pages.push(out);
+  }
+  if (pages.length === 1) return { data: pages[0], mime: format === "jpg" ? "image/jpeg" : "image/png", ext: format, pages: 1 };
+  const { default: JSZip } = await import("jszip");
+  const zip = new JSZip();
+  pages.forEach((p, i) => zip.file(`${baseName}-page-${String(i + 1).padStart(2, "0")}.${format}`, p));
+  const data = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  return { data, mime: "application/zip", ext: "zip", pages: pages.length };
+}

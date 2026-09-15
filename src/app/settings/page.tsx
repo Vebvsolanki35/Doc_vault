@@ -2,7 +2,7 @@
 
 /** Settings — language, safety locks, backup, self-healing, storage details. */
 import { useCallback, useEffect, useState } from "react";
-import { HeartHandshake, HardDrive } from "lucide-react";
+import { BrainCircuit, HeartHandshake, HardDrive } from "lucide-react";
 import { useLanguage } from "@/components/providers";
 import { BackBar, PageIn, StorageGauge } from "@/components/widgets";
 import { BackupPanel, IntegrityPanel, LanguagePanel, SecurityPanel } from "@/components/settings-panels";
@@ -15,10 +15,12 @@ export default function SettingsPage() {
   const { t } = useLanguage();
   const [lock, setLock] = useState<LockStatus | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [smart, setSmart] = useState<{ ocr: boolean; ai: boolean; aiModel: string | null } | null>(null);
 
   const refresh = useCallback(() => {
     fetch("/api/lock").then((r) => r.json()).then(setLock).catch(() => {});
     fetch("/api/stats").then((r) => (r.ok ? r.json() : null)).then(setStats).catch(() => {});
+    fetch("/api/health").then((r) => r.json()).then((d) => setSmart(d.smart ?? null)).catch(() => {});
   }, []);
 
   useEffect(refresh, [refresh]);
@@ -34,6 +36,23 @@ export default function SettingsPage() {
         {lock && <SecurityPanel config={lock.config} onChanged={refresh} />}
         {stats && <BackupPanel lastBackupAt={stats.lastBackupAt} due={backupDue} onChanged={refresh} />}
         <IntegrityPanel />
+
+        <section className="card p-6 sm:p-8">
+          <div className="flex items-start gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-leaf-tint text-leaf-deep">
+              <BrainCircuit className="h-8 w-8" aria-hidden />
+            </span>
+            <div>
+              <h2 className="font-display text-2xl font-bold sm:text-3xl">{t("set_ai")}</h2>
+              <p className="mt-1 text-lg text-ink-soft">{t("set_ai_sub")}</p>
+              {smart && (
+                <p className={`mt-3 inline-flex rounded-full px-4 py-1.5 text-base font-bold ${smart.ai ? "bg-leaf-tint text-leaf-deep" : "bg-straw text-ink-soft"}`}>
+                  {smart.ai ? t("set_ai_on", { model: smart.aiModel ?? "" }) : t("set_ai_off")}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {stats && (
           <section className="card p-6 sm:p-8">

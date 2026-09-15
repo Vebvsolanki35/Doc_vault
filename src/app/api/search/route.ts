@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { DOC_TYPE_MAP } from "@/lib/docTypes";
 import { db } from "@/db";
 import { documents, members } from "@/db/schema";
 import { isUnlocked, publicDoc, purgeExpiredBin } from "@/lib/vault";
@@ -26,7 +27,10 @@ export async function GET(req: NextRequest) {
   const boostMember = intent.memberBoost ? memberByKey.get(intent.memberBoost) : undefined;
 
   const conds = [isNull(documents.deletedAt)];
-  if (intent.folder) conds.push(eq(documents.category, intent.folder));
+  // A recognised type ("Aadhaar") narrows to that type, but documents that
+  // were never typed still show up via their folder + text so nothing hides.
+  if (intent.docType) conds.push(or(eq(documents.docType, intent.docType), eq(documents.category, DOC_TYPE_MAP[intent.docType].folder))!);
+  else if (intent.folder) conds.push(eq(documents.category, intent.folder));
   if (wantedMember) conds.push(eq(documents.memberId, wantedMember.id));
   if (intent.from) conds.push(gte(documents.createdAt, intent.from));
   if (intent.to) conds.push(lte(documents.createdAt, intent.to));
@@ -34,7 +38,7 @@ export async function GET(req: NextRequest) {
   const rows = await db
     .select({
       id: documents.id, name: documents.name, mimeType: documents.mimeType, size: documents.size,
-      category: documents.category, tags: documents.tags, createdAt: documents.createdAt,
+      category: documents.category, docType: documents.docType, tags: documents.tags, createdAt: documents.createdAt,
       shareToken: documents.shareToken, sharePasscode: documents.sharePasscode,
       memberId: documents.memberId, folderId: documents.folderId, deletedAt: documents.deletedAt,
       shareExpiresAt: documents.shareExpiresAt, ocrText: documents.ocrText,
@@ -62,6 +66,7 @@ export async function GET(req: NextRequest) {
       }
       if (intent.terms.length > 0 && hits === 0) score = -1;
       if (boostMember && r.memberId === boostMember.id) score += 2;
+      if (intent.docType && r.docType === intent.docType) score += 4;
       return { r, score };
     })
     .filter((x) => x.score >= 0)
@@ -71,6 +76,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     intent: {
       folder: intent.folder,
+      docType: intent.docType,
       memberKey: wantedMember?.key ?? boostMember?.key ?? null,
       memberStrict: !!wantedMember,
       from: intent.from?.toISOString() ?? null,
