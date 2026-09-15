@@ -7,9 +7,11 @@
  */
 import type { DictKey } from "./i18n";
 import type { FolderKey } from "./classifier";
+import { detectDocType, DOC_TYPE_MAP, type DocTypeKey } from "./docTypes";
 
 export type ParsedIntent = {
   folder: FolderKey | null;
+  docType: DocTypeKey | null;
   memberKey: "papa" | "mummy" | "me" | null;
   memberBoost: "me" | null; // soft hint from possessive "मेरा/my"
   from: Date | null;
@@ -67,6 +69,7 @@ export function parseIntent(raw: string, now = new Date()): ParsedIntent {
   const tokens = low.split(/[\s,।.?!;:'"()]+/).filter(Boolean);
 
   let folder: FolderKey | null = null;
+  let docType: DocTypeKey | null = null;
   let memberKey: ParsedIntent["memberKey"] = null;
   let memberBoost: ParsedIntent["memberBoost"] = null;
   let from: Date | null = null;
@@ -81,6 +84,16 @@ export function parseIntent(raw: string, now = new Date()): ParsedIntent {
   if (low.includes("mark sheet") || low.includes("मार्क शीट")) folder = "marksheet";
   if (low.includes("land record") || low.includes("भूमि रिकॉर्ड")) folder = "land";
   if (low.includes("id card") || low.includes("पहचान पत्र")) folder = "id";
+  // Document type ("aadhaar", "pan", "khasra", "registry"…) — sharper than the folder
+  const typeGuess = detectDocType(text);
+  if (typeGuess && typeGuess.score >= 2) {
+    docType = typeGuess.type;
+    if (!folder) folder = DOC_TYPE_MAP[docType].folder;
+    for (const kw of DOC_TYPE_MAP[docType].keywords) {
+      const k = kw.trim().toLowerCase();
+      if (!k.includes(" ")) usedTokens.add(k);
+    }
+  }
   // possessive without explicit member → probably "mine"
   if (!memberKey && /\b(my|mine|मेरा|मेरी|मेरे)\b/.test(low)) memberBoost = "me";
 
@@ -146,5 +159,5 @@ export function parseIntent(raw: string, now = new Date()): ParsedIntent {
       if (kept.length >= 3 && !terms.includes(kept.toLowerCase())) terms.push(kept);
     }
 
-  return { folder, memberKey, memberBoost, from, to, timeLabelKey, terms: terms.slice(0, 6) };
+  return { folder, docType, memberKey, memberBoost, from, to, timeLabelKey, terms: terms.slice(0, 6) };
 }

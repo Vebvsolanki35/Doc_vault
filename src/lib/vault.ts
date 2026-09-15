@@ -103,7 +103,7 @@ export async function findFolder(memberId: string, key: string) {
 // ── Public DTO ────────────────────────────────────────────────────────
 export function publicDoc(d: {
   id: string; name: string; mimeType: string; size: number; category: string;
-  tags: unknown; createdAt: Date; shareToken: string | null; sharePasscode: string | null;
+  docType?: string; tags: unknown; createdAt: Date; shareToken: string | null; sharePasscode: string | null;
   memberId?: string | null; folderId?: string | null; deletedAt?: Date | null;
   shareExpiresAt?: Date | null;
 }) {
@@ -113,6 +113,7 @@ export function publicDoc(d: {
     mimeType: d.mimeType,
     size: d.size,
     category: d.category,
+    docType: d.docType ?? "other",
     tags: d.tags,
     createdAt: d.createdAt.toISOString(),
     shareToken: d.shareToken,

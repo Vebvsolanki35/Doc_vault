@@ -108,7 +108,9 @@ export function detectMember(rawText: string, roster: Member[]): MemberGuess {
         if (hay.includes(` ${part} `) || hay.includes(part)) hits++;
         else if (hayLatin.includes(devToLatin(part).replace(/a$/, ""))) hits++;
       }
-      if (parts.length > 0 && hits === parts.length) score += parts.length * 2 + (a.length > 5 ? 1 : 0);
+      // A complete name/alias match is always decisive ("Mummy", "Ram Kumar");
+      // partial matches only add weak evidence.
+      if (parts.length > 0 && hits === parts.length) score += Math.max(3, parts.length * 2 + (a.length > 5 ? 1 : 0));
       else if (hits > 0) score += hits;
     }
     if (score > bestScore) {

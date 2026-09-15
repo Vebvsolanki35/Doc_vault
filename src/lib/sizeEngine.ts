@@ -325,6 +325,11 @@ export async function compressToTarget(
       const out = format === "original" ? "jpg" : format;
       result = await sizeImage(input, targetBytes, out as "jpg" | "png");
     }
+  } else if (mimeType === "application/pdf" && (format === "jpg" || format === "png")) {
+    // Render the first page (most portals want a single image) then size it
+    const { renderPdfPage } = await import("./convert");
+    const png = await renderPdfPage(input, 1, "high");
+    result = await sizeImage(png, targetBytes, format);
   } else if (mimeType === "application/pdf" || format === "pdf") {
     if (format === "original" && input.length <= targetBytes) {
       result = { buffer: input, actualBytes: input.length, perfect: true, floorReached: false, mime: "application/pdf", ext: "pdf" };

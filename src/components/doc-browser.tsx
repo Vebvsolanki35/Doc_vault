@@ -7,13 +7,14 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckSquare, FilePlus2, FolderInput, Loader2, ScanLine, Trash2, Archive } from "lucide-react";
+import { ArrowDownUp, CheckSquare, FilePlus2, FolderInput, Loader2, ScanLine, Search, Tags, Trash2, Archive } from "lucide-react";
 import Link from "next/link";
 import { useLanguage, toast } from "./providers";
 import { FolderIcon, FOLDER_LABEL_KEY, type MemberLite, MemberAvatar } from "./widgets";
 import { DocumentCard, type DocMeta } from "./doc-actions";
 import { FOLDER_KEYS } from "@/lib/classifier";
 import { toDevanagariDigits } from "@/lib/numbers";
+import { docTypeLabel, docTypesForFolder } from "@/lib/docTypes";
 
 export type FolderLite = {
   id: string;
@@ -54,7 +55,10 @@ export function DocBrowser({
   const [docs, setDocs] = useState<DocMeta[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [memberFilter, setMemberFilter] = useState<string>("all");
+  const [nameQuery, setNameQuery] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest" | "name" | "size">("newest");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [quality, setQuality] = useState<Quality>("medium");
@@ -94,11 +98,37 @@ export function DocBrowser({
     return c;
   }, [docs]);
 
-  const visible = docs.filter((d) => {
-    if (filter !== "all" && d.category !== filter) return false;
-    if (memberFilter !== "all" && d.memberId !== memberFilter) return false;
-    return true;
-  });
+  // Types that actually exist in the current folder view (so chips never point at empty sets)
+  const typeCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const d of docs) {
+      if (filter !== "all" && d.category !== filter) continue;
+      const k = d.docType ?? "other";
+      c[k] = (c[k] ?? 0) + 1;
+    }
+    return c;
+  }, [docs, filter]);
+  const typeChips = useMemo(() => {
+    const defs = docTypesForFolder(filter === "all" ? "all" : (filter as never)).filter((d) => (typeCounts[d.key] ?? 0) > 0);
+    return defs;
+  }, [filter, typeCounts]);
+  useEffect(() => { if (typeFilter !== "all" && !(typeCounts[typeFilter] > 0)) setTypeFilter("all"); }, [typeCounts, typeFilter]);
+
+  const q = nameQuery.trim().toLowerCase();
+  const visible = docs
+    .filter((d) => {
+      if (filter !== "all" && d.category !== filter) return false;
+      if (typeFilter !== "all" && (d.docType ?? "other") !== typeFilter) return false;
+      if (memberFilter !== "all" && d.memberId !== memberFilter) return false;
+      if (q && !d.name.toLowerCase().includes(q) && !docTypeLabel(d.docType, lang).toLowerCase().includes(q)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sort === "oldest") return a.createdAt.localeCompare(b.createdAt);
+      if (sort === "name") return a.name.localeCompare(b.name, lang === "hi" ? "hi" : "en");
+      if (sort === "size") return b.size - a.size;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -222,6 +252,49 @@ export function DocBrowser({
           ))}
         </div>
       )}
+
+      {/* Document-type chips (Aadhaar / PAN / Khasra …) */}
+      {typeChips.length > 0 && (
+        <div className="mb-6">
+          <p className="mb-2 flex items-center gap-2 text-base font-bold text-ink-soft"><Tags className="h-5 w-5" aria-hidden /> {t("browse_by_type")}</p>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("browse_by_type")}>
+            <button role="tab" aria-selected={typeFilter === "all"} onClick={() => setTypeFilter("all")}
+              className={`inline-flex min-h-[52px] cursor-pointer items-center gap-2 rounded-2xl border-2 px-4 text-lg font-bold ${typeFilter === "all" ? "border-ink bg-ink text-cream" : "border-warm-border bg-paper hover:bg-straw"}`}>
+              {t("doc_type_all")}
+            </button>
+            {typeChips.map((d) => {
+              const active = typeFilter === d.key;
+              return (
+                <button key={d.key} role="tab" aria-selected={active} onClick={() => setTypeFilter(active ? "all" : d.key)}
+                  className={`inline-flex min-h-[52px] cursor-pointer items-center gap-2 rounded-2xl border-2 px-4 text-lg font-bold ${active ? "border-[#1d4e77] bg-[#e0ecfa] text-[#1d4e77]" : "border-warm-border bg-paper hover:bg-straw"}`}>
+                  {lang === "hi" ? d.hi : d.en}
+                  <span className={`rounded-full px-2 py-0.5 text-sm ${active ? "bg-white/70" : "bg-straw"}`}>{num(typeCounts[d.key] ?? 0)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Name filter + sort */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <label className="relative flex-1 min-w-[220px]">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-ink-soft" aria-hidden />
+          <input value={nameQuery} onChange={(e) => setNameQuery(e.target.value)} placeholder={t("docs_filter_search")} aria-label={t("docs_filter_search")}
+            className="min-h-[56px] w-full rounded-2xl border-2 border-warm-border bg-paper pl-12 pr-4 text-lg font-semibold focus:border-saffron focus:outline-none" />
+        </label>
+        <label className="flex items-center gap-2 text-base font-bold text-ink-soft">
+          <ArrowDownUp className="h-5 w-5" aria-hidden />
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label={t("docs_sort")}
+            className="min-h-[56px] cursor-pointer rounded-2xl border-2 border-warm-border bg-paper px-3 text-lg font-bold text-ink">
+            <option value="newest">{t("sort_newest")}</option>
+            <option value="oldest">{t("sort_oldest")}</option>
+            <option value="name">{t("sort_name")}</option>
+            <option value="size">{t("sort_size")}</option>
+          </select>
+        </label>
+        {loaded && <span className="text-base font-semibold text-ink-soft">{t("docs_showing", { n: num(visible.length), total: num(docs.length) })}</span>}
+      </div>
 
       {/* Toolbar */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">

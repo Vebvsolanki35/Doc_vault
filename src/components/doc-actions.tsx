@@ -11,8 +11,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
 import {
-  BadgeCheck, Check, Download, FileText, Gauge, Hourglass, Loader2, Printer, QrCode, Ruler, Trash2, X,
+  BadgeCheck, Check, Download, FileText, Gauge, Hourglass, Loader2, Pencil, Printer, QrCode, Ruler, Trash2, X,
 } from "lucide-react";
+import { docTypeLabel, DOC_TYPES } from "@/lib/docTypes";
+import { extOf, stripExt } from "@/lib/naming";
 import { useLanguage, toast } from "./providers";
 import { FolderIcon, FOLDER_LABEL_KEY, FOLDER_STYLE, Modal, ReadAloudButton, SmartTags, MemberAvatar, type MemberLite } from "./widgets";
 import { formatBytes, toDevanagariDigits } from "@/lib/numbers";
@@ -23,6 +25,7 @@ export type DocMeta = {
   mimeType: string;
   size: number;
   category: string;
+  docType?: string;
   tags: Record<string, string | number> | null;
   createdAt: string;
   shareToken: string | null;
@@ -125,7 +128,13 @@ export function DownloadModal({ doc, onClose }: { doc: DocMeta | null; onClose: 
         { key: "png", label: "PNG" },
         { key: "pdf", label: "PDF" },
       ]
-    : [{ key: "original", label: t("dl_original") }, ...(doc.mimeType === "application/pdf" ? [] : [])];
+    : doc.mimeType === "application/pdf"
+      ? [
+          { key: "original", label: t("dl_original") },
+          { key: "jpg", label: "JPG" },
+          { key: "png", label: "PNG" },
+        ]
+      : [{ key: "original", label: t("dl_original") }];
 
   const startDownload = async () => {
     setDownloading(true);
@@ -388,15 +397,35 @@ export function DocumentCard({
   const [dlOpen, setDlOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [typeOpen, setTypeOpen] = useState(false);
   const style = FOLDER_STYLE[doc.category] ?? FOLDER_STYLE.other;
+  const ext = extOf(doc.name);
   const member = members.find((m) => m.id === doc.memberId);
   const date = useMemo(
     () => new Date(doc.createdAt).toLocaleDateString(lang === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", year: "numeric" }),
     [doc.createdAt, lang],
   );
   const memberName = member ? (lang === "hi" ? member.nameHi : member.nameEn) : "";
-  const speakText = `${doc.name}. ${t(FOLDER_LABEL_KEY[doc.category] ?? "cat_other")}. ${memberName}. ${date}`;
+  const speakText = `${doc.name}. ${docTypeLabel(doc.docType, lang)}. ${t(FOLDER_LABEL_KEY[doc.category] ?? "cat_other")}. ${memberName}. ${date}`;
 
+  const patch = async (body: Record<string, unknown>) => {
+    const res = await fetch(`/api/documents/${doc.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) toast(t("error_generic"), "warn");
+    return res.ok;
+  };
+  const doRename = async () => {
+    const base = draft.trim();
+    if (!base || base === stripExt(doc.name)) { setEditing(false); return; }
+    if (await patch({ name: `${base}${ext ? "." + ext : ""}` })) { toast(t("doc_renamed")); onChanged(); }
+    setEditing(false);
+  };
+  const doRetype = async (docType: string) => {
+    setTypeOpen(false);
+    if (docType === (doc.docType ?? "other")) return;
+    if (await patch({ docType })) onChanged();
+  };
   const doDelete = async () => {
     const res = await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
     if (res.ok) { toast(t("docs_deleted")); onChanged(); }
@@ -453,12 +482,46 @@ export function DocumentCard({
       </div>
 
       <div className="min-w-0 flex-1">
-        <h3 className="break-words text-xl font-bold leading-snug">{doc.name}</h3>
+        {editing ? (
+          <div className="flex items-stretch gap-2">
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus aria-label={t("doc_name")}
+              onKeyDown={(e) => { if (e.key === "Enter") doRename(); if (e.key === "Escape") setEditing(false); }}
+              className="min-h-[52px] w-full rounded-2xl border-2 border-saffron bg-cream px-4 text-xl font-bold focus:outline-none" />
+            {ext && <span className="flex items-center rounded-2xl bg-straw px-3 text-base font-bold text-ink-soft">.{ext}</span>}
+            <button onClick={doRename} className="btn-primary !min-h-[52px] !px-4 !text-base">{t("set_save")}</button>
+            <button onClick={() => setEditing(false)} className="btn-icon" aria-label={t("docs_cancel")}><X className="h-6 w-6" aria-hidden /></button>
+          </div>
+        ) : (
+          <h3 className="flex flex-wrap items-center gap-2 break-words text-xl font-bold leading-snug">
+            <span className="break-all">{doc.name}</span>
+            {!binMode && !selectMode && (
+              <button onClick={() => { setDraft(stripExt(doc.name)); setEditing(true); }} className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl text-saffron-deep hover:bg-saffron-tint" aria-label={t("doc_rename")} title={t("doc_rename")}>
+                <Pencil className="h-5 w-5" aria-hidden />
+              </button>
+            )}
+          </h3>
+        )}
         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-base text-ink-soft">
           <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold ${style.bg} ${style.fg}`}>
             <FolderIcon folder={doc.category} className="h-4 w-4" />
             {t(FOLDER_LABEL_KEY[doc.category] ?? "cat_other")}
           </span>
+          {!binMode ? (
+            typeOpen ? (
+              <select autoFocus defaultValue={doc.docType ?? "other"} onChange={(e) => doRetype(e.target.value)} onBlur={() => setTypeOpen(false)} aria-label={t("doc_type")}
+                className="min-h-[40px] cursor-pointer rounded-xl border-2 border-warm-border bg-paper px-2 text-sm font-bold text-ink">
+                {DOC_TYPES.map((d) => <option key={d.key} value={d.key}>{lang === "hi" ? d.hi : d.en}</option>)}
+                <option value="other">{t("doc_type_other")}</option>
+              </select>
+            ) : (
+              <button onClick={() => setTypeOpen(true)} title={t("doc_type")} aria-label={t("doc_type")}
+                className={`inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-sm font-bold ${doc.docType && doc.docType !== "other" ? "bg-[#e0ecfa] text-[#1d4e77]" : "bg-straw text-ink-soft"} hover:ring-2 hover:ring-saffron/40`}>
+                {docTypeLabel(doc.docType, lang)}
+              </button>
+            )
+          ) : doc.docType && doc.docType !== "other" ? (
+            <span className="rounded-full bg-[#e0ecfa] px-3 py-1 text-sm font-bold text-[#1d4e77]">{docTypeLabel(doc.docType, lang)}</span>
+          ) : null}
           {memberName && <span className="font-semibold text-ink">{memberName}</span>}
           <span>{date}</span>
           <span>·</span>

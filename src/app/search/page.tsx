@@ -12,9 +12,11 @@ import { BackBar, PageIn, FOLDER_LABEL_KEY, MemberAvatar, type MemberLite } from
 import { DocumentCard, type DocMeta } from "@/components/doc-actions";
 import type { FolderKey } from "@/lib/classifier";
 import type { DictKey } from "@/lib/i18n";
+import { docTypeLabel } from "@/lib/docTypes";
 
 type Intent = {
   folder: FolderKey | null;
+  docType: string | null;
   memberKey: string | null;
   memberStrict: boolean;
   timeLabelKey: DictKey | null;
@@ -149,13 +151,18 @@ export default function SearchPage() {
       )}
 
       <AnimatePresence>
-        {intent && (intent.folder || intent.timeLabelKey || intent.memberKey) && (
+        {intent && (intent.folder || intent.docType || intent.timeLabelKey || intent.memberKey) && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-5 mt-5 flex flex-wrap gap-3">
             {intentMember && (
               <span className="chip !bg-leaf-tint !text-leaf-deep text-lg">
                 <User className="h-5 w-5" aria-hidden />
                 {t("search_intent_member")}: <b>{lang === "hi" ? intentMember.nameHi : intentMember.nameEn}</b>
                 <MemberAvatar member={intentMember} size="sm" />
+              </span>
+            )}
+            {intent.docType && (
+              <span className="chip !bg-[#e0ecfa] !text-[#1d4e77]">
+                {t("doc_type")}: <b>{docTypeLabel(intent.docType, lang)}</b>
               </span>
             )}
             {intent.folder && (

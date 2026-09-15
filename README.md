@@ -13,9 +13,13 @@ files it in the right folder — zero clicks.** Later, when a government portal 
 
 | English | हिंदी |
 | --- | --- |
-| **Family hierarchy** — three avatar tiles (Papa/Mummy/Me), each with 5 folders: शिक्षा · पहचान पत्र · अंकतालिका · भूमि दस्तावेज़ · अन्य + custom folders (e.g. Medical Reports) | **परिवार की व्यवस्था** — हर सदस्य की अपनी जगह और फ़ोल्डर |
-| **Zero-click auto-filing** — SmartScan detects the *member* (by name aliases, Hindi or English) and the *folder*; if unsure it asks *"क्या यह पापा का है?"* with one-tap confirm/change | **अपने-आप व्यवस्थित** — कागज़ खुद ढूंढता है किसका है और कहाँ रखना है |
-| **🎯 Exact-size downloads** — slide to a target (50 KB…10 MB); iterative quality+dimension search lands ±5%, always **under the portal limit**. Scanned-PDF images are re-compressed too. Live byte-accurate estimate before downloading. "Recommended" = 80% of original | **🎯 तय साइज़ डाउनलोड** — सरकारी पोर्टल की साइज़ लिमिट के लिए एकदम सही फ़ाइल |
+| **People, not just files** — add any number of family members (**/people**), rename them, pick a colour/icon, list the other names that appear on their papers, and remove them (documents move to someone else or to the Recycle Bin). Each person gets 5 folders: शिक्षा · पहचान पत्र · अंकतालिका · भूमि दस्तावेज़ · अन्य + custom folders | **लोग, सिर्फ़ फ़ाइलें नहीं** — जितने चाहें सदस्य जोड़ें, नाम बदलें, हटाएँ |
+| **Folders you control** — create, **rename** (even the default ones) and delete folders; documents from a deleted folder land safely in *Other* | **फ़ोल्डर आपके हाथ में** — बनाएँ, नाम बदलें, हटाएँ |
+| **Check → Name → Save upload** — every file first appears as a review card: **rename it right there**, choose the person, folder and *document type* (or leave any on "let the vault decide"); "Suggest name" gives *"Papa - Aadhaar Card"*; "Apply to all" copies the choice to a whole batch; **Save all** at once. Up to **100 MB per file**, chunked & resumable | **जाँचें → नाम दें → सहेजें** — अपलोड करते समय ही नाम बदलें |
+| **Document types** — Aadhaar · PAN · Voter · Passport · Ration · Khasra/Khatauni · Registry · Naksha · Marksheet · Degree · Medical · Insurance … detected from the file name / PDF text, editable on any card. Browse **person-wise → folder-wise → type-wise**; search understands them (*"मम्मी का आधार"*, *"papa ki registry"*) | **कागज़ के प्रकार** — आधार-वार, पैन-वार, खसरा-वार देखें व खोजें |
+| **Rename anywhere** — pencil icon on every document card; the extension is kept for you | **कहीं भी नाम बदलें** |
+| **SmartScan still auto-files** what you leave on auto: member (by name aliases, Hindi or English) and folder; if unsure it asks *"क्या यह पापा का है?"* with one-tap confirm/change | **अपने-आप व्यवस्थित** — जो आप छोड़ दें, तिजोरी खुद तय करे |
+| **🎯 Exact-size downloads in any format** — images → JPG / PNG / PDF, **PDFs → JPG / PNG too** (multi-page PDFs come back as a ZIP of pages); slide to a target (50 KB…10 MB); iterative quality+dimension search lands ±5%, always **under the portal limit**. Live byte-accurate estimate before downloading | **🎯 तय साइज़, किसी भी फ़ॉर्मैट में** — PDF, JPG, PNG |
 | **Voice + text search across the family** — *"पापा की मार्कशीट"*, *"Show Mummy's Aadhaar"*, *"खसरा 245"* — understands member, folder, time range & names (Devanagari⇄Latin transliteration) | **बोलकर खोजें** — किसी भी सदस्य का कागज़ तुरंत |
 | **Smart tags without opening the file** — khasra no, area, owner; Aadhaar/PAN number (masked), expiry; marksheet %, year | **स्मार्ट टैग** — ज़रूरी जानकारी फ़ाइल खोले बिना |
 | **Duplicate detection** — identical bytes → Replace / Keep-both / Skip | **नकल पहचान** — दोहरी फ़ाइल पर सवाल |
@@ -43,9 +47,11 @@ docker compose up --build
 
 ```bash
 cp .env.example .env            # set DATABASE_URL
-npm install
+npm install --legacy-peer-deps   # (peer-dep quirk between vitest 4 + eslint on some npm versions)
 npx drizzle-kit push            # create tables
-npx tsx scripts/seed.ts         # demo family + documents
+npx tsx --env-file=.env scripts/seed.ts   # demo family + documents
+# upgrading from an older vault? tag existing files with a document type:
+npx tsx --env-file=.env scripts/backfill-doctypes.ts
 npm run build && npm start      # production  |  npm run dev for development
 ```
 
