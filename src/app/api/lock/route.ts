@@ -4,14 +4,16 @@ import {
   getLockConfig, getSetting, hashSecret, verifySecret, setSetting,
   UNLOCK_COOKIE, RECOVERY_COOKIE,
 } from "@/lib/vault";
+import { apiError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET → lock config + state. Never leaks the mobile's middle digits. */
 export async function GET() {
-  const { cookies } = await import("next/headers");
-  const store = await cookies();
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
   const cfg = await getLockConfig();
   const unlocked = !cfg.any || store.get(UNLOCK_COOKIE)?.value === "1";
   return NextResponse.json({
@@ -26,6 +28,9 @@ export async function GET() {
       otpMobile: cfg.otpMobile ? maskMobile(cfg.otpMobile) : null,
     },
   });
+  } catch (e) {
+    return apiError(e);
+  }
 }
 
 const maskMobile = (m: string) => (m.length >= 6 ? m.slice(0, 2) + "•••••" + m.slice(-3) : "••••");
@@ -75,9 +80,10 @@ async function dispatchOtp(mobile: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as Action;
+  try {
+    const body = (await req.json().catch(() => ({}))) as Action;
 
-  if (body.action === "setup") {
+    if (body.action === "setup") {
     if (!validValue(body.kind, body.value ?? "")) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
@@ -153,4 +159,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: false, error: "unknown_action" }, { status: 400 });
+  } catch (e) {
+    return apiError(e);
+  }
 }

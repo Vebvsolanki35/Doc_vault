@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { audit, isUnlocked } from "@/lib/vault";
 import { compressToTarget } from "@/lib/sizeEngine";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -17,13 +18,15 @@ const MIN_TARGET = 20 * 1024; // 20 KB floor — below this nothing stays legibl
  *  estimate=false → the actual file, byte-exact with the estimate.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as {
-    targetBytes?: number;
-    format?: "original" | "jpg" | "png" | "pdf";
-    estimate?: boolean;
-  };
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await req.json().catch(() => ({}))) as {
+      targetBytes?: number;
+      format?: "original" | "jpg" | "png" | "pdf";
+      estimate?: boolean;
+    };
   const targetBytes = Math.max(MIN_TARGET, Math.min(Math.floor(body.targetBytes ?? 0), 24 * 1024 * 1024));
   const format = body.format ?? "original";
   if (!targetBytes) return NextResponse.json({ error: "targetBytes required" }, { status: 400 });
@@ -72,4 +75,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     "Cache-Control": "no-store",
   });
   return new NextResponse(new Uint8Array(result.buffer), { headers });
+  } catch (e) {
+    return apiError(e);
+  }
 }

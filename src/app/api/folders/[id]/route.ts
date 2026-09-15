@@ -3,6 +3,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, folders } from "@/db/schema";
 import { audit, findFolder, isUnlocked } from "@/lib/vault";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -10,9 +11,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** PATCH { name, nameHi? } → rename any folder (default folders get a custom label too). */
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { name?: string; nameHi?: string };
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await req.json().catch(() => ({}))) as { name?: string; nameHi?: string };
   const name = (body.name ?? "").trim().slice(0, 60);
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
   const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
@@ -25,6 +28,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     .returning();
   await audit("folder_rename", folder.nameEn ?? folder.key, { to: name });
   return NextResponse.json({ folder: updated });
+  } catch (e) {
+    return apiError(e);
+  }
 }
 
 /**
@@ -33,11 +39,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
  * Documents inside safely fall back to the member's "Other" folder.
  */
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
-  if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
-  const { id } = await ctx.params;
-  const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
-  const folder = rows[0];
-  if (!folder) return NextResponse.json({ error: "not found" }, { status: 404 });
+  try {
+    if (!(await isUnlocked())) return NextResponse.json({ error: "locked" }, { status: 401 });
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
+    const folder = rows[0];
+    if (!folder) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (folder.isDefault && folder.key === "other") return NextResponse.json({ error: "cannot_delete_default" }, { status: 400 });
 
   const fallback = await findFolder(folder.memberId, "other");
@@ -52,4 +60,7 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   await db.delete(folders).where(eq(folders.id, id));
   await audit("folder_delete", folder.nameEn ?? folder.key);
   return NextResponse.json({ ok: true });
+  } catch (e) {
+    return apiError(e);
+  }
 }

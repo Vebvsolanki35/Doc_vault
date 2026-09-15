@@ -187,19 +187,29 @@ export function floodBackground(mask: Uint8Array, w: number, h: number): Uint8Ar
 /**
  * Returns the indices of the biggest connected component of `mask`.
  */
-function largestComponent(mask: Uint8Array, w: number, h: number): { indices: Int32Array; count: number } | null {
+/**
+ * Pick the best connected component. When `lum` is given, candidates are
+ * scored by area × mean brightness — real paper is the large BRIGHT region,
+ * while false regions enclosed by edge noise (desk texture, vignette rings)
+ * are dark. A small size guard keeps tiny bright specks from winning.
+ */
+function largestComponent(mask: Uint8Array, w: number, h: number, lum?: Float32Array): { indices: Int32Array; count: number } | null {
   const label = new Int32Array(w * h).fill(-1);
   const stack = new Int32Array(w * h);
-  let best: { indices: number[]; count: number } | null = null;
+  let best: { indices: number[]; count: number; score: number } | null = null;
+  let maxCount = 0;
+  const candidates: { indices: number[]; count: number; score: number }[] = [];
   for (let start = 0; start < w * h; start++) {
     if (!mask[start] || label[start] !== -1) continue;
     let top = 0;
     stack[top++] = start;
     label[start] = 1;
     const comp: number[] = [];
+    let lumSum = 0;
     while (top > 0) {
       const i = stack[--top];
       comp.push(i);
+      if (lum) lumSum += lum[i];
       const x = i % w, y = (i / w) | 0;
       for (let dy = -1; dy <= 1; dy++) {
         const yy = y + dy;
@@ -212,7 +222,14 @@ function largestComponent(mask: Uint8Array, w: number, h: number): { indices: In
         }
       }
     }
-    if (!best || comp.length > best.count) best = { indices: comp, count: comp.length };
+    if (comp.length < 100) continue; // too small to be the paper (pcaBox needs ≥40)
+    maxCount = Math.max(maxCount, comp.length);
+    const meanLum = lum ? lumSum / comp.length : 1;
+    candidates.push({ indices: comp, count: comp.length, score: comp.length * meanLum });
+  }
+  for (const c of candidates) {
+    if (best && c.count < best.count * 0.35 && c.score < best.score) continue; // size guard
+    if (!best || c.score > best.score) best = c;
   }
   if (!best) return null;
   const indices = new Int32Array(best.count);
@@ -329,7 +346,8 @@ export function detectDocumentGray(gray: Float32Array, w: number, h: number, opt
   const paper = new Uint8Array(total);
   for (let i = 0; i < total; i++) paper[i] = edges[i] || !bg[i] ? 1 : 0;
 
-  const comp = largestComponent(paper, w, h);
+  // paper = the large BRIGHT region (desk/vignette false regions are dark)
+  const comp = largestComponent(paper, w, h, blurred);
   if (!comp) return null;
 
   let quad = pcaBox(comp.indices, comp.count, w, h);
@@ -355,7 +373,10 @@ export function detectDocumentGray(gray: Float32Array, w: number, h: number, opt
       const q2 = pcaBox(strongComp.indices, strongComp.count, w, h);
       if (q2) {
         const f2 = quadArea(q2) / total;
-        if (f2 >= minFill && f2 <= maxFill) quad = q2;
+        // The refinement must only TIGHTEN onto the paper border. The largest
+        // strong component can be a shadow-gradient ring on the dark desk
+        // OUTSIDE the paper (bigger than the paper) — never expand the box.
+        if (f2 >= minFill && f2 <= maxFill && quadArea(q2) <= quadArea(quad) * 1.02) quad = q2;
       }
     }
   }

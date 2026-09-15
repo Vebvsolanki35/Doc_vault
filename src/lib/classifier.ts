@@ -95,6 +95,16 @@ export type MemberGuess = { member: Member; score: number } | null;
 export function detectMember(rawText: string, roster: Member[]): MemberGuess {
   const hay = normalize(rawText);
   const hayLatin = " " + devToLatin(rawText).toLowerCase() + " ";
+  // Whole tokens only — a name part must match a WHOLE word, otherwise
+  // "Ram" would score inside "Rampur" and flip the wrong person's papers.
+  const tokens = new Set(hay.trim().split(/\s+/));
+  const latinTokens = new Set<string>();
+  for (const tok of hayLatin.trim().split(/\s+/)) {
+    latinTokens.add(tok);
+    // devToLatin keeps a trailing schwa ("अमित" → "amita"); index the
+    // schwa-less form too so alias "Amit" matches whole-word.
+    if (tok.length > 2 && tok.endsWith("a")) latinTokens.add(tok.slice(0, -1));
+  }
   let best: MemberGuess = null;
   let bestScore = 0;
   for (const m of roster) {
@@ -105,8 +115,11 @@ export function detectMember(rawText: string, roster: Member[]): MemberGuess {
       const parts = a.split(/\s+/).filter((p) => p.length > 1);
       let hits = 0;
       for (const part of parts) {
-        if (hay.includes(` ${part} `) || hay.includes(part)) hits++;
-        else if (hayLatin.includes(devToLatin(part).replace(/a$/, ""))) hits++;
+        if (tokens.has(part)) hits++;
+        else {
+          const lat = devToLatin(part);
+          if (latinTokens.has(lat) || latinTokens.has(lat.replace(/a$/, ""))) hits++;
+        }
       }
       // A complete name/alias match is always decisive ("Mummy", "Ram Kumar");
       // partial matches only add weak evidence.

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { documents } from "@/db/schema";
 import { isUnlocked, sha256 } from "@/lib/vault";
 import { convertImage, convertPdf, isImage, Quality } from "@/lib/convert";
+import { apiError, isUuid } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,8 +20,10 @@ type Ctx = { params: Promise<{ id: string }> };
  * automatically and served instead.
  */
 export async function GET(req: NextRequest, ctx: Ctx) {
-  const { id } = await ctx.params;
-  const sp = req.nextUrl.searchParams;
+  try {
+    const { id } = await ctx.params;
+    if (!isUuid(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const sp = req.nextUrl.searchParams;
 
   // ── Authorisation: unlocked session OR valid share token+passcode ──
   const shareToken = sp.get("share");
@@ -108,4 +111,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     headers.set("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(outName)}`);
   }
   return new NextResponse(new Uint8Array(outData), { headers });
+  } catch (e) {
+    return apiError(e);
+  }
 }

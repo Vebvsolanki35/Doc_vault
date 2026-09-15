@@ -1,7 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { detectDocType, docTypeLabel } from "../src/lib/docTypes";
+import { detectMember } from "../src/lib/classifier";
 import { sanitizeName, suggestName } from "../src/lib/naming";
 import { parseIntent } from "../src/lib/nlp";
+
+const ROSTER: any[] = [
+  { id: "1", key: "papa", nameEn: "Papa", nameHi: "पापा", aliases: ["Ram Kumar", "राम कुमार", "राम", "Ram"], sort: 1 },
+  { id: "2", key: "mummy", nameEn: "Mummy", nameHi: "मम्मी", aliases: ["Sita Devi", "सिता देवी", "सिता", "Sita"], sort: 2 },
+  { id: "3", key: "me", nameEn: "Me", nameHi: "मैं", aliases: ["Amit", "Amit Kumar"], sort: 3 },
+];
+
+describe("member detection", () => {
+  it("picks the right person when a place name contains another name (Rampur ≠ Ram)", () => {
+    // "Rampur" must NOT count as evidence for "Ram Kumar"; the patient Amit wins.
+    const text = "PRESCRIPTION\nDr. Sharma Clinic\nHospital Road, Rampur\nPatient: Amit Kumar\nRx: Paracetamol 650mg";
+    expect(detectMember(text, ROSTER)?.member.key).toBe("me");
+  });
+  it("matches complete names in Hindi and English", () => {
+    expect(detectMember("Name: Ram Kumar\nPAN: ABCDE1234F", ROSTER)?.member.key).toBe("papa");
+    expect(detectMember("नाम: सीता देवी", ROSTER)?.member.key).toBe("mummy");
+    expect(detectMember("परीक्षा अंकतालिका — अमित कुमार", ROSTER)?.member.key).toBe("me");
+  });
+  it("returns null when nobody is mentioned", () => {
+    expect(detectMember("buy milk and bread", ROSTER)).toBeNull();
+  });
+});
 
 describe("document type detection", () => {
   it("recognises Aadhaar from name or number", () => {
@@ -18,8 +41,15 @@ describe("document type detection", () => {
     expect(detectDocType("ration card mummy.jpg")?.folder).toBe("id");
     expect(detectDocType("naksha village.pdf")?.folder).toBe("land");
   });
+  it("recognises camera photos (IMG_/DSC_ prefix, with or without date)", () => {
+    expect(detectDocType("IMG_4521.jpg")?.type).toBe("photo");
+    expect(detectDocType("IMG4521.jpg")?.type).toBe("photo");
+    expect(detectDocType("DSC_0031.jpg")?.type).toBe("photo");
+    expect(detectDocType("IMG_20240101_1200.jpg")?.type).toBe("photo");
+  });
   it("returns null for meaningless names", () => {
-    expect(detectDocType("IMG_20240101_1200.jpg")).toBeNull();
+    expect(detectDocType("randomfile.jpg")).toBeNull();
+    expect(detectDocType("photo of something maybe.jpg")?.type).toBe("photo"); // the word "photo" is real evidence
   });
   it("labels are bilingual", () => {
     expect(docTypeLabel("aadhaar", "hi")).toBe("आधार कार्ड");

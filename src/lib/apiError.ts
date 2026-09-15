@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 
+/** UUID shape — used to reject garbage ids BEFORE they reach Postgres,
+ *  where a non-uuid against a uuid column throws `invalid input syntax
+ *  for type uuid` (SQLSTATE 22P02) and would surface as a bare 500. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid = (s: unknown): s is string => typeof s === "string" && UUID_RE.test(s);
+
 function rootMessage(e: unknown): string {
   // Walk to the DEEPEST cause — the root cause (e.g. "connect ECONNREFUSED
   // …") is what the user needs, not the ORM's "Failed query: <sql>" wrapper.
