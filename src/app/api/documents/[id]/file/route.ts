@@ -5,6 +5,7 @@ import { documents } from "@/db/schema";
 import { isUnlocked, sha256 } from "@/lib/vault";
 import { convertImage, convertPdf, isImage, Quality } from "@/lib/convert";
 import { apiError, isUuid } from "@/lib/apiError";
+import { imageEngineErrorText, isImageEngineError } from "@/lib/imageEngine";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -90,7 +91,17 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       } else {
         return NextResponse.json({ error: "conversion not supported for this file" }, { status: 400 });
       }
-    } catch {
+    } catch (e) {
+      // A missing native image engine is a deployment problem, not a bug in
+      // this request: report it as such (503 + engine:sharp) so the client can
+      // explain it instead of showing an opaque "conversion failed".
+      if (isImageEngineError(e)) {
+        return NextResponse.json(
+          { error: `engine:sharp: ${imageEngineErrorText(e)}` },
+          { status: 503 },
+        );
+      }
+      console.error("[file] conversion failed:", e instanceof Error ? e.message : e);
       return NextResponse.json({ error: "conversion failed" }, { status: 500 });
     }
   } else if (mode === "raw" && asDownload) {

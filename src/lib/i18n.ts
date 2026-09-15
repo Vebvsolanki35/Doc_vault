@@ -74,6 +74,8 @@ const en = {
   upload_outbox_pending: "{n} file(s) waiting for internet",
   upload_sync_now: "Send Waiting Files",
   upload_fail: "Could not upload this file. Please try again.",
+  upload_engine_err: "The server could not process images (its image engine is missing). Nothing was saved — try again after the app is redeployed.",
+  read_engine_err: "The server could not scan this file (image engine unavailable) — it was sorted from its name instead.",
   upload_toobig: "This file is too large (max 100 MB).",
   upload_hint: "Add the file, check the name and who it belongs to, then press Save. The vault pre-fills everything it can.",
 
@@ -390,6 +392,7 @@ const en = {
   // ── v4: database health ──
   db_banner: "The database is not connected, so new files can't be saved yet. Fix DATABASE_URL in the .env file (then run: npx drizzle-kit push). I keep checking — no need to restart.",
   upload_db_err: "The vault's database is not connected — nothing can be saved right now.",
+  db_banner_schema: "The vault's database is connected but its tables are missing, so nothing can be saved yet. Run `npx drizzle-kit push` once with your DATABASE_URL (see README) — then everything works again.",
 };
 
 export type DictKey = keyof typeof en;
@@ -460,6 +463,8 @@ const hi: Record<DictKey, string> = {
   upload_outbox_pending: "{n} फ़ाइल इंटरनेट का इंतज़ार कर रही है",
   upload_sync_now: "इंतज़ार करती फ़ाइलें भेजें",
   upload_fail: "यह फ़ाइल नहीं चढ़ सकी। फिर कोशिश करें।",
+  upload_engine_err: "सर्वर छवियाँ पढ़ नहीं पाया (उसका इमेज इंजन गायब है)। कुछ भी सहेजा नहीं गया — ऐप दोबारा डिप्लॉय होने पर फिर कोशिश करें।",
+  read_engine_err: "सर्वर इस फ़ाइल को स्कैन नहीं कर पाया (इमेज इंजन उपलब्ध नहीं) — नाम के आधार पर क्रमबद्ध किया गया।",
   upload_toobig: "यह फ़ाइल बहुत बड़ी है (अधिकतम 100 MB)।",
   upload_hint: "फ़ाइल जोड़िए, नाम और किसका है जाँचिए, फिर सहेजें दबाइए। जो हो सके तिजोरी खुद भर देती है।",
 
@@ -765,6 +770,7 @@ const hi: Record<DictKey, string> = {
   // ── v4: database health ──
   db_banner: "डेटाबेस नहीं जुड़ा है, इसलिए अभी नई फ़ाइलें सहेजी नहीं जा सकतीं। .env फ़ाइल में DATABASE_URL ठीक करें (फिर चलाएँ: npx drizzle-kit push)। मैं लगातार जाँचता रहूँगा — रीस्टार्ट की ज़रूरत नहीं।",
   upload_db_err: "तिजोरी का डेटाबेस नहीं जुड़ा — अभी कुछ भी सहेजा नहीं जा सकता।",
+  db_banner_schema: "तिजोरी का डेटाबेस जुड़ा है पर उसकी टेबलें नहीं बनीं, इसलिए अभी कुछ सहेजा नहीं जा सकता। अपने DATABASE_URL के साथ एक बार `npx drizzle-kit push` चलाएँ (README देखें) — फिर सब ठीक चलेगा।",
 };
 
 const dicts: Record<Lang, Record<DictKey, string>> = { en, hi };

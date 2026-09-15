@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Camera, CheckCircle2, CloudUpload, CopyCheck, FileText, ImagePlus, Loader2, Pencil, Save, ScanLine, ScanText, Sparkles, Trash2, Wand2, WifiOff, X,
+  AlertTriangle, Camera, CheckCircle2, CloudUpload, CopyCheck, FileText, ImagePlus, Loader2, Pencil, Save, ScanLine, ScanText, Sparkles, Trash2, Wand2, WifiOff, X,
 } from "lucide-react";
 import { useLanguage, toast } from "./providers";
 import {
@@ -51,7 +51,7 @@ type QueueItem = {
   // AI / OCR analysis (runs as soon as the file is added)
   analysis?: "pending" | "done" | "failed";
   analysisId?: string | null;
-  read?: { engine: string; confidence: number; preview: string; summary: string | null; ai: string | null; memberConfidence: number; tags: Record<string, string | number> | null };
+  read?: { engine: string; confidence: number; preview: string; summary: string | null; ai: string | null; memberConfidence: number; tags: Record<string, string | number> | null; reason?: string | null };
   // results
   doc?: DocMeta;
   detected?: Detected;
@@ -187,7 +187,7 @@ export default function UploadFlow() {
           docType: cur.docType === "auto" || cur.docType === cur.guessedType ? (a.docType && a.docType !== "other" ? a.docType : "auto") : cur.docType,
           memberId: cur.memberId ?? (a.memberConfidence >= 0.5 ? a.memberId : null),
           name: untouchedName && a.suggestedName && a.confidence >= 0.5 ? stripExt(a.suggestedName) : cur.name,
-          read: { engine: a.ocr.engine, confidence: a.ocr.confidence, preview: a.ocr.preview, summary: a.summary, ai: a.ai, memberConfidence: a.memberConfidence, tags: a.tags },
+          read: { engine: a.ocr.engine, confidence: a.ocr.confidence, preview: a.ocr.preview, summary: a.summary, ai: a.ai, memberConfidence: a.memberConfidence, tags: a.tags, reason: a.ocr.reason ?? null },
         };
       });
     } catch {
@@ -244,7 +244,10 @@ export default function UploadFlow() {
         toast(t("upload_offline"), "warn");
       } else {
         update(key, { status: "error", error: msg });
-        toast(msg.startsWith("db:") ? t("upload_db_err") : t("upload_fail"), "warn");
+        toast(
+          msg.startsWith("db:") ? t("upload_db_err") : msg.startsWith("engine:") ? t("upload_engine_err") : t("upload_fail"),
+          "warn",
+        );
       }
     }
   }, [items, update, refreshOutbox, t]);
@@ -487,6 +490,11 @@ function ReviewCard({ item, members, memberFolders, typeOptions, onChange, onSav
               {item.read.engine === "none" || !item.read.preview ? t("ai_read_nothing") : t("ai_read_done", { pct: Math.round(item.read.confidence) })}
               {item.read.ai && <span className="rounded-full bg-paper px-2 py-0.5 text-sm">AI · {item.read.ai}</span>}
             </p>
+            {item.read.reason && !item.read.preview && (
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 text-base font-semibold text-saffron-deep">
+                <AlertTriangle className="h-5 w-5" aria-hidden /> {t("read_engine_err")}
+              </p>
+            )}
             {item.read.summary && <p className="mt-1 text-base text-ink">{item.read.summary}</p>}
             {item.read.tags && <SmartTags tags={item.read.tags} compact />}
             {item.read.preview && (
@@ -622,7 +630,9 @@ function ProgressCard({ item, members, memberFolders, onRefile, onRename, onDupl
         {item.status === "offline" && <p className="mt-2 flex items-center gap-2 text-lg font-bold text-saffron-deep"><WifiOff className="h-6 w-6" aria-hidden /> {t("upload_offline")}</p>}
         {item.status === "error" && (
           <div className="mt-2">
-            <p className="text-lg font-bold text-danger">{item.error?.startsWith("db:") ? t("upload_db_err") : t("upload_fail")}</p>
+            <p className="text-lg font-bold text-danger">
+              {item.error?.startsWith("db:") ? t("upload_db_err") : item.error?.startsWith("engine:") ? t("upload_engine_err") : t("upload_fail")}
+            </p>
             {item.error && <p className="mt-1 break-words rounded-xl bg-danger-tint px-3 py-2 font-mono text-sm text-danger">{item.error}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <button onClick={onRetry} className="btn-ghost !min-h-[48px] !text-base">{t("upload_save")}</button>

@@ -22,8 +22,8 @@
   --color-danger: #8f1d1d;
   --color-danger-tint: #f9e5e5;
 
-  --font-sans: var(--font-noto), system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-fraunces), var(--font-noto), Georgia, serif;
+  --font-sans: "Noto Sans Devanagari Variable", system-ui, -apple-system, sans-serif;
+  --font-display: "Fraunces Variable", "Noto Sans Devanagari Variable", Georgia, serif;
 
   --shadow-soft: 0 2px 6px rgba(60, 42, 16, 0.07), 0 14px 34px -12px rgba(60, 42, 16, 0.16);
   --shadow-lift: 0 4px 10px rgba(60, 42, 16, 0.1), 0 24px 50px -16px rgba(60, 42, 16, 0.28);

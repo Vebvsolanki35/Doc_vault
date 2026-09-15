@@ -1,21 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Fraunces, Noto_Sans_Devanagari } from "next/font/google";
+/* Self-hosted fonts (Fontsource woff2, shipped inside node_modules).
+   They are imported as CSS instead of fetched from Google Fonts at build
+   time, so `next build` never depends on an external network call and the
+   fonts keep working offline (PWA) / in restricted CI networks. */
+import "@fontsource-variable/fraunces/index.css";
+import "@fontsource-variable/noto-sans-devanagari/index.css";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Shell } from "@/components/shell";
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-  display: "swap",
-});
-
-const noto = Noto_Sans_Devanagari({
-  subsets: ["devanagari", "latin"],
-  variable: "--font-noto",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Smart Tijori — स्मार्ट तिजोरी | Bilingual Document Vault",
@@ -34,7 +27,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="hi">
-      <body className={`${fraunces.variable} ${noto.variable} bg-cream font-sans text-ink antialiased`}>
+      <body className="bg-cream font-sans text-ink antialiased">
         <Providers>
           <Shell>{children}</Shell>
         </Providers>

@@ -19,14 +19,21 @@ const IDLE_LIMIT = 5 * 60 * 1000;
 function DbHealthBanner() {
   const { t } = useLanguage();
   const [down, setDown] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     const check = () => {
+      // Read the body even on 503: it says *why* the vault is unhealthy
+      // (no connection, missing tables, missing DATABASE_URL …).
       fetch("/api/health")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => { if (alive) setDown(!(j && j.ok)); })
-        .catch(() => { if (alive) setDown(true); });
+        .then((r) => r.json().catch(() => null))
+        .then((j) => {
+          if (!alive) return;
+          setDown(!(j && j.ok));
+          setCode(j?.db?.code ?? (j ? null : "db:connect"));
+        })
+        .catch(() => { if (alive) { setDown(true); setCode("db:connect"); } });
     };
     check();
     const iv = setInterval(check, 20000);
@@ -46,7 +53,9 @@ function DbHealthBanner() {
           <div className="border-b border-danger/30 bg-danger-tint">
             <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 sm:px-6">
               <Database className="h-8 w-8 shrink-0 text-danger" aria-hidden />
-              <p className="text-lg font-bold leading-snug text-danger">{t("db_banner")}</p>
+              <p className="text-lg font-bold leading-snug text-danger">
+                {code === "db:schema" ? t("db_banner_schema") : t("db_banner")}
+              </p>
             </div>
           </div>
         </motion.div>
